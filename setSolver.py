@@ -5,20 +5,22 @@ import time
 def setSolve(encStr,patDict):
 	# Takes an encoded string and attempts to solve it:
 	start = time.time()
-	#print("\tRunning Set Solver on:")
-	#print("\t",encStr)
+	print("\tRunning Set Solver on:")
+	print("\t",encStr)
 
 	words = encStr.split(' ')
+	while "" in words:
+		words.remove("")
 	matches = []
 	for i in range(0,len(words)):
 		matches.append(getMatches(words[i],patDict))
 
 
-	#for i in range(0,len(matches)):
-	#	print("\t\t\t",words[i],"->",len(matches[i]),"matches")
-	#	if len(matches[i])<3:
-	#		print("\t\t\t\t",matches[i])
-	#print("")
+	for i in range(0,len(matches)):
+		print("\t\t\t",words[i],"->",len(matches[i]),"matches")
+		if len(matches[i])<3:
+			print("\t\t\t\t",matches[i])
+	print("")
 
 
 	val = getSets(words,matches)
@@ -32,16 +34,16 @@ def setSolve(encStr,patDict):
 		matches = ret[0]
 		count = ret[1]
 
-	#print("\n\t\tTerminating set solver:")
-	#stop = time.time()
-	#print(stop-start,"seconds")
-	#for i in range(0,len(matches)):
-	#	print("\t\t\t",words[i],"->",len(matches[i]),"matches")
-	#	if len(matches[i])<3:
-	#		print("\t\t\t\t",matches[i])
-	#print("")
-	#for key in val[1]:
-	#	print(key,len(val[1][key]),val[1][key])
+	print("\n\t\tTerminating set solver:")
+	stop = time.time()
+	print(stop-start,"seconds")
+	for i in range(0,len(matches)):
+		print("\t\t\t",words[i],"->",len(matches[i]),"matches")
+		if len(matches[i])<3:
+			print("\t\t\t\t",matches[i])
+	print("")
+	for key in val[1]:
+		print(key,len(val[1][key]),val[1][key])
 
 	# returns sDcit from the most recent run
 	return val[1]
@@ -68,6 +70,9 @@ def getSets(encWords,matches):
 			else:
 				sDict[encWords[i][j]] = []
 				sDict[encWords[i][j]].append(sets[i][j])
+
+	# TODO: Try to identify characters that occur in only one position.  They definitely won't help us find the solution
+	#		and could be detrimental.... though I'm actually pretty sure they just don't have any impact on the solution
 
 	# Now iterate through each key in sDict and find the shared set for each character
 	for key in sDict:
@@ -284,86 +289,26 @@ def singleSetTrim_thorough(encWords,matches,sel,threshold):
 	return trimmedList
 
 
+def checkSolution(encStr, sDict):
+	# Attempts to identify when set solver has failed
+	# Basically, if the number of unique characters present in
+	# sDict is smaller than the number of unique characters in encStr
+	# then no solution can exist- returns False in that case
 
+	# TODO: Expand this to work when some sDict entries are being ignored.
 
-
-
-
-
-
-
-
-'''
-def smallestSet(sDict):
-	# Return the key for the smallest non 1 set. or none
-	smallest = 26
-	sKey = None
-	for key in sDict:
-		if len(sDict[key])<smallest and len(sDict[key]) != 1:
-			smallest = len(sDict[key])
-			sKey = key
-	return sKey
-
-def recurSolve(encStr,patDict):
-	words = encStr.split(' ')
-	matches = []
-	for i in range(0,len(words)):
-		matches.append(getMatches(words[i],patDict))
-
-	val = getSets(words,matches)
-	sDict = val[1]
-	sNext = smallestSet(sDict)
-	print("Here we go!")
-	start = time.time()
-	sets = tryAll(sNext,sDict)
-	end = time.time()
-	print("Done!",end-start,"seconds")
-	return sets
-
-
-def checkSets(sDict):
-	#checks sDict for a failure condition, i.e. empty set
-	for key in sDict:
-		if len(sDict[key]) == 0:
-			return False
-	return True
-
-def tryAll(key,sDict):
-	sets = []
-	for char in sDict[key]:
-		tDict = deepcopy(sDict)
-		tDict[key] = set(char)
-		tDict = removeSingles(tDict)
-		
-		if checkSets(tDict):
-			sNext = smallestSet(tDict)
-			if sNext != None:
-				ret = tryAll(sNext,tDict)
-				for item in ret:
-					sets.append(item)
-			else:
-				sets.append(tDict)
-				#print(tDict)
-	return sets
-
-def translate(sDict,encStr):
-	print(sDict)
-	pDict = sDict2pDict(sDict)
-
-	buff = ""
+	# Get unique chars in encStr:
+	uStr = set()
 	for char in encStr:
-		if char in pDict:
-			buff += pDict[char]
-		else:
-			buff += ' '
+		uStr.add(char)
 
-	print(buff)
+	# Get unique chars in sDict
+	uDict = set()
+	for key in sDict:
+		uDict |= sDict[key]
 
-def sDict2pDict(sDict):
-	# TODO: rework this to handle sDicts that have sets larger than 1
-	tDict = dict(sDict)
-	pDict = {}
-	for key in tDict:
-		pDict[key] = tDict[key].pop()
-	return pDict
-'''
+	if len(uStr) > len(sDict):
+		return False
+	else:
+		return True
+
