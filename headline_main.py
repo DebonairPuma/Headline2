@@ -37,11 +37,70 @@ Once the 26 long string is found, we'll attempt to extract the setting, key, and
 2. Use brute force to try all possible combinations for a given sDict
 3. Work on configuration file, and startup process. Should automatically grab whatever files 
    are in the folder and end with pats.p or tree.p
-4. Improve set solver by checking for sets containing only one letter and removing that letter from
-   all other sets.
 5. Create an interface for finding word lists and selecting them.  User should be able to pick and choose
 
 6. Work on turning partial solves and indeterminate lines into complete solves
+7. What if we can't get 2 reasonable solves using setSolve?
+8. Test the best threshold for singlesettrim
+9. Test to see if it's worth always running singleSetTrim before the thorough version, alternatively
+   find a good way to determine how long it'll take, this could be a significant speedup
+
+
+
+NOTES:
+11/21/17: Ran several tests comparing setSolve with removeSingles on/off, only on strings that contained only valid
+		  words.  Interestingly, in 170 test cases, 112 cases contained only words in our dictionary.  This seems
+		  like a respectable number.
+
+		  Performance was as follows: 
+		  	Singles off completed in 9.92958331108 seconds
+		  	Singles on  completed in 9.87210416793 seconds, and removed 1098 more values than singles off
+		  	Total extraneous values (singles off) was 20545, singles on had 19447
+
+		  So it looks like setSolve is always better with singleremoval enabled, the option to turn it off
+		  will be removed.  
+
+		  Next tried to determine what percentage of "solvable" encoded strings set solve is effective on.
+		  Of the 112 cases tried, only 37 had fewer than 10 extraneous values. Less than 10 extraneous values
+		  is an extremely close solve, but that's only 37/170 cases where set solve alone works well- far below
+		  the 40% goal of 68/170.  It's fast enough that it's always worth trying initially, but we're going
+		  to have to see if singleSetTrim can improve performance
+
+		  For single set trim to work, we need to select words that have relatively few matches and ones that share
+		  the most characters with other words in the string.  Tests should be run to determine the relative importance
+		  of each of these traits.
+
+		  Just completed a round of tests on singleSetTrim_thorough vs setSovler.  As expected, sSTt is much 
+		  slower than setSolver, but it solved considerably more lines, in the same 112 case set:
+
+			Trim Time:  66.22738718986511
+			Sets Time:  9.911092281341553
+				Trim had  9349 extraneous and 58 perfect or near perfect solves
+				Sets had  19447 extraneous and 36 perfect or near perfect solves
+
+				NOTE: this was with maxListLen = 500
+
+			With max list length 750
+			Trim Time:  80.9944908618927
+			Sets Time:  9.914267301559448
+				Trim had  8650 extraneous and 59 perfect or near perfect solves
+				Sets had  19447 extraneous and 36 perfect or near perfect solves
+			
+			With max list length 250
+			Trim Time:  26.628820180892944
+			Sets Time:  9.73991870880127
+				Trim had  11401 extraneous and 55 perfect or near perfect solves
+				Sets had  19447 extraneous and 36 perfect or near perfect solves
+
+			With max list length 100
+			Trim Time:  13.961133003234863
+			Sets Time:  9.877316951751709
+				Trim had  14890 extraneous and 46 perfect or near perfect solves
+				Sets had  19447 extraneous and 36 perfect or near perfect solves
+
+		  Fun fact! Apparently using singSetTrim instead of sSTt in the selectWords2Trim function yields the 
+		  same results as set solver.  Same number of extraneous solves, same number of good solves, but in
+		  slightly more than twice the time.
 
 '''
 
@@ -103,9 +162,13 @@ class HEADLINE(object):
 		# Solved is set to True
 		# If one or more sets has exactly one entry then partialSolved
 		# If one or more sets has zero, then failed
+		
 		self.numSolved = 0
 		self.numFailed = 0
 		self.numPartial = 0
+		
+		if self.sDict == None:
+			return
 
 		for key in self.sDict:
 			if len(self.sDict[key]) == 0:
@@ -119,7 +182,101 @@ class HEADLINE(object):
 			self.solved = True
 		if self.numFailed > 0:
 			self.failed = True
-			
+
+
+def selectWords2Trim(encStr,patDict):
+	# This function will try several methods to determine which words are eligible for
+	# singleSetTrim/singleSetTrim_thorough.
+	# Word stats-> numCharacters, numSharedCharacters, numMatches, 
+	# First challenge, eliminate any words that share no characters with other words
+	
+	maxListLen = 100
+
+	#print(encStr)
+	start = time.time()
+	words = encStr.split(' ')
+	while "" in words:
+		words.remove("")
+
+	matches = []
+	for i in range(0,len(words)):
+		matches.append(getMatches(words[i],patDict))
+		#print(words[i],"->",len(matches[i]),"matches")
+
+	# Try an initial shakedown process, basically just running setSovle:
+	# this is straight from setSolve
+	matches = setSolve_slim(words,matches)
+
+	# TODO: improve this ranking process.  Speed is probably more important than
+	# 		precision here, so simple is better
+	stats = []
+	for i in range(0,len(words)):
+		shared = 0
+		cSet = set(words[i])
+		
+		for j in range(0,len(words)):
+			if i == j:
+				continue
+
+			tSet = set(words[j])
+			shared += len(tSet & cSet)
+
+		stats.append((i,shared))
+
+	#print(stats)
+	stats = sorted(stats,key=lambda s: s[1])[::-1]
+	#print("post sort: ",stats[::-1])
+
+	# Remove any words that are unlikely to be useful:
+	fstats = []
+	for stat in stats:
+		if len(matches[stat[0]]) < maxListLen:
+			# Ignore any words that are too short
+			if len(words[stat[0]]) > 2:
+				if stat[1] > 2:
+					fstats.append(stat)
+
+
+	#print("trimming\n")
+	# After every iteration, try running getSets again:
+	for i in range(0,len(fstats)):
+		#print("trying:", words[stats[i][0]])
+		if len(matches[fstats[i][0]]) > maxListLen:
+			# skip any that will take too long
+			continue
+		matchList = singleSetTrim_thorough(words,matches,fstats[i][0],1)
+		#matchList = singleSetTrim(words,matches,fstats[i][0],1)
+		matches[fstats[i][0]] = matchList
+		matches = setSolve_slim(words,matches)
+
+
+	# Try a second pass- eventually want to replace this with a loop
+	for i in range(0,len(fstats)):
+		#print("trying:", words[stats[i][0]])
+		if len(matches[fstats[i][0]]) > maxListLen:
+			# skip any that will take too long
+			continue
+		matchList = singleSetTrim_thorough(words,matches,fstats[i][0],1)
+		#matchList = singleSetTrim(words,matches,fstats[i][0],1)
+		matches[fstats[i][0]] = matchList
+		matches = setSolve_slim(words,matches)
+
+	stop = time.time()
+	#print("FINISHED! in ", stop-start,"seconds")
+	#for i in range(0,len(words)):
+	#	print(words[i],"->",len(matches[i]),"matches")
+	#	if len(matches[i]) <5:
+	#		print("\t",matches[i])	
+	#print("######################\n")
+
+	val = getSets(words,matches)
+	return val[1]
+
+
+
+
+
+
 
 
 def main():
@@ -155,12 +312,84 @@ def main():
 
 	# Load up the test files
 	tests = getTestFiles("testFiles.txt")
+
+	# Get only test strings for which all words are in the dictionary
+	tencStrs = []
+	tclrStrs = []
+	for test in tests:
+		for i in range(0,len(test.encStrs)):
+			clrWords = test.clrStrs[i].split(" ")
+			while "" in clrWords:
+				clrWords.remove("")
+
+			valid = True
+			for word in clrWords:
+				if findFull(word,tree):
+					pass
+				else:
+					valid = False
+					break
+			if valid == True:
+				tencStrs.append(test.encStrs[i])
+				tclrStrs.append(test.clrStrs[i])
+
+	print("From ",len(tests)*5,"test cases, found",len(tencStrs),"which should be solvable")
+	print("Trying set solver on all cases:")
+
+	threshold = 10
+	goodsolves = 0
+	badsolves = 0
+	ttrim = 0
+	tsets = 0
+
+	Textra = 0
+	Sextra = 0
+	tsolved = 0
+	ssolved = 0
+
+	for testStr in tencStrs:
+		t1 = time.time()
+		ret = selectWords2Trim(testStr,patDict)
+		t2 = time.time()
+		ttrim += t2-t1
+		tmp = 0
+		for key in ret:
+			if len(ret[key]) != 1:
+				tmp += len(ret[key]) - 1
+				Textra += len(ret[key]) - 1
+		if tmp < 10:
+			tsolved+=1
+
+		t1 = time.time()
+		ret = setSolve(testStr,patDict)
+		t2 = time.time()
+		tsets += t2-t1
+		tmp = 0
+		for key in ret:
+			if len(ret[key]) != 1:
+				tmp += len(ret[key]) - 1
+				Sextra += len(ret[key]) - 1
+		if tmp<10:
+			ssolved +=1
+
+		#if extra > threshold:
+		#	for key in ret:
+		#		print(key,len(ret[key]),ret[key])
+		#	print("\n##################\n")
+		#	badsolves += 1
+		#else:
+		#	goodsolves += 1
+
 	
-	# Pick just one for now:
-	test = tests[1]
+	print("With max list length 750")
+	print("DONE!\n\tTrim Time: ",ttrim,"\n\tSets Time: ",tsets)
+	print("\t\tTrim had ",Textra,"extraneous and", tsolved,"perfect or near perfect solves")
+	print("\t\tSets had ",Sextra,"extraneous and", ssolved,"perfect or near perfect solves")
+	#print("Of ",len(tencStrs),"strings tested ", goodsolves,"strings were below the threshold of",threshold)
 
 
-
+	'''
+	# Runs single set solver on all tests
 	for test in tests:
 		headlines = []
 		start = time.time()
@@ -175,7 +404,7 @@ def main():
 
 		#for i in range(0,len(test.encStrs)):
 		#	print(test.clrStrs[i])	
-
+	'''
 
 
 

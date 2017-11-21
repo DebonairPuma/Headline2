@@ -5,8 +5,8 @@ import time
 def setSolve(encStr,patDict):
 	# Takes an encoded string and attempts to solve it:
 	start = time.time()
-	print("\tRunning Set Solver on:")
-	print("\t",encStr)
+	#print("\tRunning Set Solver on:")
+	#print("\t",encStr)
 
 	words = encStr.split(' ')
 	while "" in words:
@@ -16,11 +16,11 @@ def setSolve(encStr,patDict):
 		matches.append(getMatches(words[i],patDict))
 
 
-	for i in range(0,len(matches)):
-		print("\t\t\t",words[i],"->",len(matches[i]),"matches")
-		if len(matches[i])<3:
-			print("\t\t\t\t",matches[i])
-	print("")
+	#for i in range(0,len(matches)):
+	#	print("\t\t\t",words[i],"->",len(matches[i]),"matches")
+	#	if len(matches[i])<3:
+	#		print("\t\t\t\t",matches[i])
+	#print("")
 
 
 	val = getSets(words,matches)
@@ -34,19 +34,33 @@ def setSolve(encStr,patDict):
 		matches = ret[0]
 		count = ret[1]
 
-	print("\n\t\tTerminating set solver:")
+	#print("\n\t\tTerminating set solver:")
 	stop = time.time()
-	print(stop-start,"seconds")
-	for i in range(0,len(matches)):
-		print("\t\t\t",words[i],"->",len(matches[i]),"matches")
-		if len(matches[i])<3:
-			print("\t\t\t\t",matches[i])
-	print("")
-	for key in val[1]:
-		print(key,len(val[1][key]),val[1][key])
+	#print(stop-start,"seconds")
+	#for i in range(0,len(matches)):
+	#	print("\t\t\t",words[i],"->",len(matches[i]),"matches")
+	#	if len(matches[i])<3:
+	#		print("\t\t\t\t",matches[i])
+	#print("")
+	#for key in val[1]:
+	#	print(key,len(val[1][key]),val[1][key])
 
 	# returns sDcit from the most recent run
 	return val[1]
+
+def setSolve_slim(words,matches):
+	# Simplified setSolve, returns matches rather than sets
+	val = getSets(words,matches)
+	ret = setTrim(words,val[1],matches)
+	matches = ret[0]
+	count = ret[1]
+
+	while count != 0:
+		val = getSets(words,matches)
+		ret = setTrim(words,val[1],matches)
+		matches = ret[0]
+		count = ret[1]	
+	return matches
 
 def getSets(encWords,matches):
 	# Given a set of encoded words and their possible matches, gets sets of possible characters
@@ -85,8 +99,7 @@ def getSets(encWords,matches):
 		sDict[key] = tmp
 
 	# Finally, run remove singles
-	# TODO: Toggle this on/off in automation.  Sometimes its good, others it hurts performance
-	#sDict = removeSingles(sDict)
+	sDict = removeSingles(sDict)
 
 	return (sets,sDict)
 
@@ -144,7 +157,7 @@ def singleSetTrim(encWords,matches,sel,threshold):
 	# TODO: Rework this to use the list of all matches, verify that each position matches
 	# Attempts to reduce the number of matches for a single word
 
-	print("\tPre trim:",len(matches[sel]))
+	#print("\tPre trim:",len(matches[sel]))
 	start = time.time()
 	e2sDicts = [{} for x in range(0,len(encWords))]
 
@@ -190,9 +203,9 @@ def singleSetTrim(encWords,matches,sel,threshold):
 			trimmedList.append(match)
 
 	stop = time.time()
-	print("\tPost trim:",len(trimmedList))
+	#print("\tPost trim:",len(trimmedList))
 	#print("\t",trimmedList)
-	print("\tFinished in",stop-start,"seconds\n")
+	#print("\tFinished in",stop-start,"seconds\n")
 
 	return trimmedList
 
@@ -201,7 +214,7 @@ def singleSetTrim_thorough(encWords,matches,sel,threshold):
 	# Similar in spirit to singleSetTrim, but this iterates through all possible matches for each
 	# This seems to be about ten times slower than the other version, though it does consistently yield better results
 
-	print("\tPre trim:",len(matches[sel]))
+	#print("\tPre trim:",len(matches[sel]))
 	start = time.time()
 	e2sDicts = [{} for x in range(0,len(encWords))]
 	# This is useful only for words that have only one letter in common with sel
@@ -282,9 +295,9 @@ def singleSetTrim_thorough(encWords,matches,sel,threshold):
 			trimmedList.append(match)
 
 	stop = time.time()
-	print("\tPost trim:",len(trimmedList))
+	#print("\tPost trim:",len(trimmedList))
 	#print("\t",trimmedList)
-	print("\tFinished in",stop-start,"seconds\n")
+	#print("\tFinished in",stop-start,"seconds\n")
 
 	return trimmedList
 
