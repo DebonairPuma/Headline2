@@ -156,6 +156,12 @@ def singleSetTrim(encWords,matches,sel,threshold):
 	# TODO: Automate the process picking sel
 	# TODO: Rework this to use the list of all matches, verify that each position matches
 	# Attempts to reduce the number of matches for a single word
+	# Remember, this is supposed to be a more fault tolerant (and slower) version of set solver
+	# The idea is that if we know n words are not in the dictionary, we increase the threshold to n
+	# to accomodate them.
+	# If all clear words are in the source dictionary, there is NO REASON TO USE THIS!
+	# This is a simple (but kind of stupid) method for "ignoring" certain encoded words, in the future
+	# it is probably better to just improve set solver so it takes a list of words to ignore
 
 	#print("\tPre trim:",len(matches[sel]))
 	start = time.time()

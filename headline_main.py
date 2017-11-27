@@ -98,9 +98,25 @@ NOTES:
 				Trim had  14890 extraneous and 46 perfect or near perfect solves
 				Sets had  19447 extraneous and 36 perfect or near perfect solves
 
+			With max list length 10000
+			Trim Time:  638.6522572040558 
+			Sets Time:  9.727199077606201
+				Trim had  6498 extraneous and 63 perfect or near perfect solves
+				Sets had  19447 extraneous and 36 perfect or near perfect solves
+
 		  Fun fact! Apparently using singSetTrim instead of sSTt in the selectWords2Trim function yields the 
 		  same results as set solver.  Same number of extraneous solves, same number of good solves, but in
 		  slightly more than twice the time.
+
+
+1. DONE Write a function to get the set of all characters in an encoded word that appear in other
+   valid words
+
+2. DONE Write a function to get the signatures for all selected words
+
+3. Write a function to get the signatures for all other words
+
+
 
 '''
 
@@ -190,7 +206,7 @@ def selectWords2Trim(encStr,patDict):
 	# Word stats-> numCharacters, numSharedCharacters, numMatches, 
 	# First challenge, eliminate any words that share no characters with other words
 	
-	maxListLen = 100
+	maxListLen = 10000
 
 	#print(encStr)
 	start = time.time()
@@ -272,10 +288,158 @@ def selectWords2Trim(encStr,patDict):
 	val = getSets(words,matches)
 	return val[1]
 
+def get_shared_chars(encWords, sel):
+	# Given a list of encoded words and a selection, return a list of all the characters in 
+	# the selection that appear in at least one other word of length > 1
+	# TODO: Experiment with changing the threshold to length > 2
+	
+	# Get the set of characters in sel
+	a = set(encWords[sel])
+	tStr = ""
+	for i in range(0,len(encWords)):
+		if i != sel and len(encWords[i]) > 1:
+			tStr += encWords[i]
+	# Set of all other characters
+	b = set(tStr)
+
+	# Return the intersection of a & b
+	return a & b
+
+def get_sig_sel(encWord, sChars, matches):
+	# Given an encoded word, the characters it shares with other words
+	# and a list of potential matches, returns a dictionary where the keys 
+	# are unique signatures, and the values are the lists of indexes where the 
+	# signature occurs
+
+	# Note a signature is a string of the clear characters that the shared characters
+	# in a word map to.
+
+	# First determine the positions we want to check:
+	positions = []
+	for char in sChars:
+		positions.append(encWord.find(char))
+
+	# Now produce the dictionary
+	sigDict = {}
+
+	# Iterate through all matches
+	for i in range(0,len(matches)):
+		# Determine the signature of the match
+		tSig = ""
+		for pos in positions:
+			tSig += matches[i][pos]
+
+		# Add to the dictionary:
+		if tSig in sigDict:
+			# Entry already appears, append the index to the existing list
+			sigDict[tSig].append(i)
+		else:
+			# Entry does not yet exist, create one			
+			sigDict[tSig] = [i]
+
+	return sigDict
+
+def get_char_sigs(encWord,sChars, matches):
+	# Same concept as above, but instead we have a nested dictionary
+	# where outDict[encChar][clrChar] = set of match indexes
+
+	# First determine the positions we want to check:
+	positions = []
+	for char in sChars:
+		positions.append(encWord.find(char))
+
+	outDict = {}
+	for pos in positions:
+		outDict[encWord[pos]] = {}
 
 
+	for i in range(0,len(matches)):
+
+		for pos in positions:
+			if matches[i][pos] in outDict[encWord[pos]]:
+				# Entry already exists
+				outDict[ encWord[pos] ] [ matches[i][pos] ].append(i)
+			else:
+				# Entry does not yet exist
+				outDict[ encWord[pos] ] [ matches[i][pos] ] = [i]
+
+	# Convert all lists to sets:
+	# TODO: Time this to figure out if it is actually worth doing
+	# 		Compare with the time it takes to do it when we create the 
+	#		set as we go
+
+	for key1 in outDict:
+		for key2 in outDict[key1]:
+			outDict[key1][key2] = set(outDict[key1][key2])
+
+	return outDict
+
+def get_all_sigDicts(encWords,matches):
+	# Returns a list containing the sigDicts for each word
+	# if an encoded word does not need a sigDict (no shared characters, length of 1)
+	# then its position in the list will be None
+	# Each sigdict in the list is: sigDict[encChar][clrChar] = set of match indexes
+
+	sigDicts = []
+	for i in range(0,len(encWords)):
+		if len(encWords[i]) < 2:
+			sigDicts.append(None)
+			break
+		
+		sChars = list(get_shared_chars(encWords,i))
+		if len(sChars) < 2:
+			sigDicts.append(None)
+			break
+
+		sigDicts.append(get_char_sigs(encWords[i],sChars, matches[i]))
+
+	return sigDicts
+
+def check_intersections(sigMapList, sChars, selNum, sigDicts):
+	# Given a list of signatures, the selection number (), 
+	# a list of sChars and a list of sigDicts, determines which signatures are valid:
+	# Sig map list is a list of enc->clr dicts
+	# TODO: This needs serious cleanup, it's confusing as heck
+
+	validSigs = []
+
+	for sigMap in sigMapList:
+		valid = True
+
+		for i in range(0,len(sigDicts)):
+			# Pass on any sigDict that is None:
+			if sigDicts[i] == None:
+				continue
 
 
+			# Determine if the signature has any shared encoded chars
+			sEncChars = set(sigDicts[i].keys())
+			
+			sEncChars = sEncChars & sChars
+
+			if len(sEncChars) != 0:
+				# For every shared encoded character, verify that the current
+				# sigDict has a corresponding clear character
+				x = [] # List of sets to find the intersection of
+
+				# Try to get all the sets we need to combine
+				# if this produces a key error, then the signature must be invalid
+				try:
+					for sEncChar in sEncChars:
+						x.append(sigDicts[i][sEncChar][sigMap[sEncChar]])
+					
+					tst = x[0]
+					for item in x:
+						tst = tst & item
+
+					if len(tst) == 0:
+						valid = False
+
+				except KeyError:
+					valid = False
+
+				if valid == True:
+					validSigs.append(sigMap)
 
 
 
@@ -333,6 +497,54 @@ def main():
 				tencStrs.append(test.encStrs[i])
 				tclrStrs.append(test.clrStrs[i])
 
+	words = encStrs[4].split(" ")
+	while "" in words:
+		words.remove("")
+
+	ret = list(get_shared_chars(words, 5))
+	print(ret)
+
+	matches = []
+	for i in range(0,len(words)):
+		matches.append(getMatches(words[i],patDict))
+
+	start = time.time()
+	val = get_sig_sel(words[5],ret, matches[5])
+	stop = time.time()
+	#print(matches[5])
+	
+	print("elapsed time: ", stop-start)
+	print(val)
+	start = time.time()
+	sigDicts = get_all_sigDicts(words,matches)
+	stop = time.time()
+	print("Got all sigDicts in: ", stop-start)
+	#print(val)
+
+	# Now check to see which signatures are valid:
+	sigs = val
+	positions = []
+
+	for sig in sigs:
+		
+		for i in range(0,len(words)):
+			# Determine if the signature has any shared chars
+			a = set(words[i])
+			sChars = a & set(sig)
+
+			if len(sChars) != 0:
+				# Check the intersection, x, of all the shared chars
+				sets = []
+				for char in sChars:
+					try:
+						sets.append(words[i].find(char))
+
+		print(set(sig))
+
+
+
+
+	'''
 	print("From ",len(tests)*5,"test cases, found",len(tencStrs),"which should be solvable")
 	print("Trying set solver on all cases:")
 
@@ -381,12 +593,12 @@ def main():
 		#	goodsolves += 1
 
 	
-	print("With max list length 750")
+	print("With max list length 10000")
 	print("DONE!\n\tTrim Time: ",ttrim,"\n\tSets Time: ",tsets)
 	print("\t\tTrim had ",Textra,"extraneous and", tsolved,"perfect or near perfect solves")
 	print("\t\tSets had ",Sextra,"extraneous and", ssolved,"perfect or near perfect solves")
 	#print("Of ",len(tencStrs),"strings tested ", goodsolves,"strings were below the threshold of",threshold)
-
+	'''
 
 	'''
 	# Runs single set solver on all tests
