@@ -107,17 +107,6 @@ NOTES:
 		  Fun fact! Apparently using singSetTrim instead of sSTt in the selectWords2Trim function yields the 
 		  same results as set solver.  Same number of extraneous solves, same number of good solves, but in
 		  slightly more than twice the time.
-
-
-1. DONE Write a function to get the set of all characters in an encoded word that appear in other
-   valid words
-
-2. DONE Write a function to get the signatures for all selected words
-
-3. Write a function to get the signatures for all other words
-
-
-
 '''
 
 ###########################################################
@@ -395,8 +384,39 @@ def get_all_sigDicts(encWords,matches):
 
 	return sigDicts
 
-def check_intersections(sigMapList, sChars, selNum, sigDicts):
-	# Given a list of signatures, the selection number (), 
+def check_intersections(mapping, sigDict):
+	# given a mapping (a list of (enc, clr) tuples), and a sigDict
+	# Determine if the mapping is valid.  Returns true or false
+	# Recall: sigDict[encChar][clrChar] = set of match indexes
+
+	sets = []	
+	try:
+		for item in mapping:
+			sets.append(sigDict[mapping[0]][mapping[1]])
+	except KeyError:
+		# If a key error occurs, the mapping cannot be valid
+		return False
+
+	x = sets[0]
+	for curr in sets:
+		x |= curr
+		if len(x) == 0:
+			return False
+
+	return True
+
+def get_sig_tuples(encSig, clrSig):
+	# Just creates a list of (encChar,clrChar) tuples
+	#out = [(encSig[i],clrSig[i]) for i in range(0,len(encSig))]
+	#return out
+	# Slightly more useable version, only creates tuples for shared chars
+	#####################################################################
+	# LEFT OFF HERE TODO
+
+
+
+def find_valid_signatures(encSig,sigMapList, sChars, sigDicts):
+	# Given a list of signatures 
 	# a list of sChars and a list of sigDicts, determines which signatures are valid:
 	# Sig map list is a list of enc->clr dicts
 	# TODO: This needs serious cleanup, it's confusing as heck
@@ -418,29 +438,6 @@ def check_intersections(sigMapList, sChars, selNum, sigDicts):
 			sEncChars = sEncChars & sChars
 
 			if len(sEncChars) != 0:
-				# For every shared encoded character, verify that the current
-				# sigDict has a corresponding clear character
-				x = [] # List of sets to find the intersection of
-
-				# Try to get all the sets we need to combine
-				# if this produces a key error, then the signature must be invalid
-				try:
-					for sEncChar in sEncChars:
-						x.append(sigDicts[i][sEncChar][sigMap[sEncChar]])
-					
-					tst = x[0]
-					for item in x:
-						tst = tst & item
-
-					if len(tst) == 0:
-						valid = False
-
-				except KeyError:
-					valid = False
-
-				if valid == True:
-					validSigs.append(sigMap)
-
 
 
 def main():
