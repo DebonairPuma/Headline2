@@ -107,6 +107,25 @@ NOTES:
 		  Fun fact! Apparently using singSetTrim instead of sSTt in the selectWords2Trim function yields the 
 		  same results as set solver.  Same number of extraneous solves, same number of good solves, but in
 		  slightly more than twice the time.
+
+	In find valid signatures, I'm looking at iTuples and noticing that the same sets of tuples
+	are coming up several times.  Is there a good way to avoid this?
+
+	
+	TODO: Investigate why this yields strange results. signature_main finishes in .32 seconds,
+	but has three times as many results.  sSTt takes 7.1 seconds, but has better results
+	start = time.time()
+	print(signature_main(words, matches, 0, patDict))
+	stop = time.time()
+	print("done in", stop-start)
+
+	start = time.time()
+	print(singleSetTrim_thorough(words,matches,0,1))
+	stop = time.time()
+	print("done in", stop-start)
+
+
+
 '''
 
 ###########################################################
@@ -134,7 +153,7 @@ encStrs = [	"LMWQLX NRQSKV QY SKXMLINVML ZLNHHMH LMEQLVMX OK JNG",
 			"DXGUX NHQHAQ CHIHAYWP VYQX GXYW RCM",
 			"UEA ITKZ JPZVPZZTZ E FTPYYS PRZ ZRWF",
 			"UCF CMJCZMJCU RH GOSFQX HMGXU GRDQN O HMXU VDYV",
-			"HPQFRC BRFFSRB OQFJ EQIERC TGG MKBBRPDRU"]
+			"HPQFRC BRFFSRB OQFJ EQIERC TGG MKBBRPDRU"] #UNITED SETTLES WITH KICKED-OFF PASSENGER 
 
 class HEADLINE(object):
 	# An object for storing an encoded headline and some relevant data about it
@@ -388,56 +407,138 @@ def check_intersections(mapping, sigDict):
 	# given a mapping (a list of (enc, clr) tuples), and a sigDict
 	# Determine if the mapping is valid.  Returns true or false
 	# Recall: sigDict[encChar][clrChar] = set of match indexes
+	#print("\t\tin intersections")
+	#for key in sigDict:
+	#	print(key,sigDict[key].keys())
+	#	print()
 
 	sets = []	
 	try:
+		
 		for item in mapping:
-			sets.append(sigDict[mapping[0]][mapping[1]])
+			sets.append(sigDict[item[0]][item[1]])
+		#print("\t\tno key error")
 	except KeyError:
 		# If a key error occurs, the mapping cannot be valid
+		#print("\t\tkey error")
 		return False
 
-	x = sets[0]
+	# MAKE A COPY OF THAT SET!!!
+	# That took an hour to debug
+	x = set(sets[0])
+	
 	for curr in sets:
-		x |= curr
+		#print("Curr set:",curr)
+		x &= curr
 		if len(x) == 0:
 			return False
 
+	#print("\t\t\tSUCESS\n")
+	#print("\t\t\t",x)
 	return True
 
-def get_sig_tuples(encSig, clrSig):
+def get_sig_tuples(encSig, clrSig, tChars):
 	# Just creates a list of (encChar,clrChar) tuples
 	#out = [(encSig[i],clrSig[i]) for i in range(0,len(encSig))]
 	#return out
 	# Slightly more useable version, only creates tuples for shared chars
-	#####################################################################
-	# LEFT OFF HERE TODO
+	# encSig is the signature of the selected word
+	# clrSig is the signature assosciated with that
+	# tChars is a string or list of characters we want to include in 
+	# our intersection check
 
 
+	a = [x for x in encSig]
+	b = [x for x in clrSig]
+	out = []
+	for i in range(0,len(encSig)):
+		if encSig[i] in tChars:
+			out.append((a[i],b[i]))
 
-def find_valid_signatures(encSig,sigMapList, sChars, sigDicts):
-	# Given a list of signatures 
-	# a list of sChars and a list of sigDicts, determines which signatures are valid:
-	# Sig map list is a list of enc->clr dicts
-	# TODO: This needs serious cleanup, it's confusing as heck
+	return out
 
+def find_valid_signatures(eSchars, sigsIn, sigDicts):
+	# TODO: Try to make this make sense.  Seriously WTF.
+	# TODO: Once it's easier to understand, try optimizing it.
+	# Checks to see which signatures (if any) are valid
 	validSigs = []
 
-	for sigMap in sigMapList:
+	setOftChars = set(eSchars)
+
+	# Iterate through all potential signatures
+	for signature in sigsIn:
+		#print(eSchars)
+		#print("Checking ",signature)
 		valid = True
 
+		# Check against sigDicts for each word in sentence
 		for i in range(0,len(sigDicts)):
 			# Pass on any sigDict that is None:
 			if sigDicts[i] == None:
 				continue
 
-
 			# Determine if the signature has any shared encoded chars
 			sEncChars = set(sigDicts[i].keys())
+			sEncChars = sEncChars & setOftChars
 			
-			sEncChars = sEncChars & sChars
+			iTuples = get_sig_tuples(eSchars,signature, sEncChars)
 
-			if len(sEncChars) != 0:
+			#print("\tiTuples",iTuples)
+
+			# Ignore any words with no shared characters
+			if len(iTuples) != 0:
+				# Check intersections.  If this returns true, it means that
+				# the current signature invalidated that word
+				if check_intersections(iTuples, sigDicts[i]):
+					continue
+				else:
+					# TODO: incorporate a threshold here
+					valid = False
+					break
+
+		if valid == True:
+			validSigs.append(signature)
+
+	return validSigs
+
+
+
+def signature_main(words, matches, sel, patDict):
+	#print(matches[sel][5])
+
+	# Get the list of significant characters for selected word:
+	selSchars = list(get_shared_chars(words, sel))
+
+	#print("selSchars")
+	#print(selSchars)
+
+	# Get the dict of signatures for the selected word
+	# selSIgs: Keys="clrSig", Values=[matches with that clrSig]
+	selSigs = get_sig_sel(words[sel],selSchars, matches[sel])
+
+	#print("selSigs")
+	#print(selSigs)
+
+	# Get the character dictionaries for each other word
+	# charDicts[0]->charDict[encChar][clrChar] = set of match indexes
+	charDicts = get_all_sigDicts(words,matches)
+
+	#print("charDicts")
+	#print(charDicts)
+
+	# Run find valid signatures:
+	ret = find_valid_signatures(selSchars, selSigs.keys(), charDicts)
+
+	# Ret is a list of valid signatures, combine the ones that are OK
+	# and then fetch the valid matches
+	vindexes = []
+	out = []
+
+	for vsig in ret:
+		for index in selSigs[vsig]:
+			out.append(matches[sel][index])
+
+	return out
 
 
 def main():
@@ -498,46 +599,21 @@ def main():
 	while "" in words:
 		words.remove("")
 
-	ret = list(get_shared_chars(words, 5))
-	print(ret)
-
+	# Get Matches
 	matches = []
 	for i in range(0,len(words)):
 		matches.append(getMatches(words[i],patDict))
 
 	start = time.time()
-	val = get_sig_sel(words[5],ret, matches[5])
+	print(signature_main(words, matches, 0, patDict))
 	stop = time.time()
-	#print(matches[5])
-	
-	print("elapsed time: ", stop-start)
-	print(val)
+	print(len(matches[0]))
+	print("done in", stop-start)
+
 	start = time.time()
-	sigDicts = get_all_sigDicts(words,matches)
+	print(singleSetTrim_thorough(words,matches,0,1))
 	stop = time.time()
-	print("Got all sigDicts in: ", stop-start)
-	#print(val)
-
-	# Now check to see which signatures are valid:
-	sigs = val
-	positions = []
-
-	for sig in sigs:
-		
-		for i in range(0,len(words)):
-			# Determine if the signature has any shared chars
-			a = set(words[i])
-			sChars = a & set(sig)
-
-			if len(sChars) != 0:
-				# Check the intersection, x, of all the shared chars
-				sets = []
-				for char in sChars:
-					try:
-						sets.append(words[i].find(char))
-
-		print(set(sig))
-
+	print("done in", stop-start)
 
 
 
