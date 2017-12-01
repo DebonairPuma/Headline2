@@ -207,7 +207,6 @@ class HEADLINE(object):
 		if self.numFailed > 0:
 			self.failed = True
 
-
 def selectWords2Trim(encStr,patDict):
 	# This function will try several methods to determine which words are eligible for
 	# singleSetTrim/singleSetTrim_thorough.
@@ -501,8 +500,6 @@ def find_valid_signatures(eSchars, sigsIn, sigDicts):
 
 	return validSigs
 
-
-
 def signature_main(words, matches, sel, patDict):
 	#print(matches[sel][5])
 
@@ -515,7 +512,7 @@ def signature_main(words, matches, sel, patDict):
 	# Get the dict of signatures for the selected word
 	# selSIgs: Keys="clrSig", Values=[matches with that clrSig]
 	selSigs = get_sig_sel(words[sel],selSchars, matches[sel])
-
+	print("total signatures: ",len(selSigs.keys()), "from ",len(matches[sel]))
 	#print("selSigs")
 	#print(selSigs)
 
@@ -529,6 +526,7 @@ def signature_main(words, matches, sel, patDict):
 	# Run find valid signatures:
 	ret = find_valid_signatures(selSchars, selSigs.keys(), charDicts)
 
+	print("valid sigs for",selSchars,"\n",ret)
 	# Ret is a list of valid signatures, combine the ones that are OK
 	# and then fetch the valid matches
 	vindexes = []
@@ -605,18 +603,40 @@ def main():
 		matches.append(getMatches(words[i],patDict))
 
 	start = time.time()
-	print(signature_main(words, matches, 0, patDict))
-	stop = time.time()
-	print(len(matches[0]))
-	print("done in", stop-start)
-
-	start = time.time()
 	print(singleSetTrim_thorough(words,matches,0,1))
 	stop = time.time()
 	print("done in", stop-start)
 
+	start = time.time()
+	results = signature_main(words, matches, 0, patDict)
+	stop = time.time()
+	print(len(matches[0]))
+	print("done in", stop-start)
 
+	matches[0] = list(results)
+	print("here")
+	print(matches[0])
+	start = time.time()
+	newlist = singleSetTrim_thorough(words,matches,0,1)
+	print(newlist)
+	stop = time.time()
+	print("done in", stop-start)
+	
+	selSchars = list(get_shared_chars(words, 0))
+	selSigsA = get_sig_sel(words[0],selSchars, newlist)
+	print(selSigsA.keys())
+	print()
+	selSigsB = get_sig_sel(words[0],selSchars, results)
+	print(selSigsB.keys())
+	print()
 
+	A = set(selSigsA.keys())
+	B = set(selSigsB.keys())
+	print(A ^ B)
+	
+	#HPQFRC BRFFSRB OQFJ EQIERC TGG MKBBRPDRU
+	#UNITED SETTLES WITH KICKED OFF PASSENGER 
+	#['Q', 'P', 'F', 'C', 'R']
 	'''
 	print("From ",len(tests)*5,"test cases, found",len(tencStrs),"which should be solvable")
 	print("Trying set solver on all cases:")
