@@ -111,18 +111,7 @@ NOTES:
 	In find valid signatures, I'm looking at iTuples and noticing that the same sets of tuples
 	are coming up several times.  Is there a good way to avoid this?
 
-	
-	TODO: Investigate why this yields strange results. signature_main finishes in .32 seconds,
-	but has three times as many results.  sSTt takes 7.1 seconds, but has better results
-	start = time.time()
-	print(signature_main(words, matches, 0, patDict))
-	stop = time.time()
-	print("done in", stop-start)
-
-	start = time.time()
-	print(singleSetTrim_thorough(words,matches,0,1))
-	stop = time.time()
-	print("done in", stop-start)
+	TODO: Check intersections should return the set it declared valid
 
 
 
@@ -278,6 +267,7 @@ def main():
 	matches = []
 	for i in range(0,len(words)):
 		matches.append(getMatches(words[i],patDict))
+
 
 	start = time.time()
 	trimmed1 = signature_main(words, matches, 0, patDict)

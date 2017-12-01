@@ -24,6 +24,9 @@ def signature_main(words, matches, sel, patDict):
 	# Run find valid signatures:
 	ret = find_valid_signatures(selSchars, selSigs.keys(), charDicts)
 
+	# Trim these based on "irrelevant" mappings
+
+
 	# Ret is a list of valid signatures, combine the ones that are OK
 	# and then fetch the valid matches
 	vindexes = []
@@ -132,7 +135,7 @@ def get_all_sigDicts(encWords,matches):
 		if len(encWords[i]) < 2:
 			sigDicts.append(None)
 			break
-		
+		# TODO: Should this threshold be a 1?
 		sChars = list(get_shared_chars(encWords,i))
 		if len(sChars) < 2:
 			sigDicts.append(None)
@@ -142,7 +145,9 @@ def get_all_sigDicts(encWords,matches):
 
 	return sigDicts
 
-def check_intersections(mapping, sigDict):
+def check_intersections(mapping, sigDict, matches, tIndexes, sel, sel2):
+	# tIndexes is the list of indexes assosciated with the current mapping.
+	# sel is the word that we're trimming
 	# given a mapping (a list of (enc, clr) tuples), and a sigDict
 	# Determine if the mapping is valid.  Returns true or false
 	# Recall: sigDict[encChar][clrChar] = set of match indexes
@@ -150,7 +155,6 @@ def check_intersections(mapping, sigDict):
 	#for key in sigDict:
 	#	print(key,sigDict[key].keys())
 	#	print()
-
 	sets = []	
 	try:
 		
@@ -172,11 +176,44 @@ def check_intersections(mapping, sigDict):
 		if len(x) == 0:
 			return False
 
-	#print("\t\t\tSUCESS\n")
-	#print("\t\t\t",x)
-	#print(mapping)
-	#print(x)
-	return True
+	# Create a set of the clear characters to ignore
+	toRemove = set(mapping[a][1] for a in range(0,len(mapping)))
+
+	outIndexes = []
+	for index in tIndexes:
+		Y = set(matches[sel][index])
+		Y -= toRemove
+
+		found = False
+		for curr in x:
+			X = set(matches[sel2][curr])
+			X -= toRemove
+
+			# Check for intersection of X & Y, if the intersection exists, 
+			# then that word is invalid
+			if len(X & Y) == 0:
+				found == True
+				break
+
+		if found:
+			outIndexes.append(index) 
+
+	return outIndexes
+
+		# Iterate through items of X and find if any are valid
+
+
+	'''
+	# Check on the clear mappings
+	
+	# For every match (in Y) associated with the current signature, create a set of the clear
+	# characters that all non shared characters map to
+	#	Now, for all matches in set X, create a set of all the clear characters that all non
+	#	shared characters map to
+	#	If these sets intersect, then remove the index from X.  If X is empty, proceed to 
+	#	the next match in Y.  If after this loop, X contains at least 1 item, append it
+
+	'''
 
 def get_sig_tuples(encSig, clrSig, tChars):
 	# Just creates a list of (encChar,clrChar) tuples
@@ -202,14 +239,16 @@ def find_valid_signatures(eSchars, sigsIn, sigDicts):
 	# TODO: Once it's easier to understand, try optimizing it.
 	# eSchars is a list of encoded shared characters from the target word
 	# Checks to see which signatures (if any) are valid
+	
 	validSigs = []
-
 	setOftChars = set(eSchars)
+
 	sigsIn = list(sigsIn)
 	# For every signature, establish a set of subsignatures that we need to apply 
 	# to each word:
 	# LIST [ DICTS ], where keys are sigTuples, and values are indexes of sigsIn that use
 	# That signature
+
 
 	uSigs = []
 	for i in range(0,len(sigDicts)):
@@ -231,8 +270,7 @@ def find_valid_signatures(eSchars, sigsIn, sigDicts):
 				# We haven't seen this tuple yet, establish a new list:
 				tDict[iTuple] = [j]
 		uSigs.append(tDict)
-
-
+	
 	# Run check intersections on all:
 	validSets = []
 	for i in range(0,len(sigDicts)):
@@ -242,58 +280,25 @@ def find_valid_signatures(eSchars, sigsIn, sigDicts):
 
 		tSet = set()
 		for key in uSigs[i]:
-			if check_intersections(key,sigDicts[i]):
-				for x in uSigs[i][key]:
-					tSet.add(x)
+			ret = check_intersections(key,sigDicts[i]):
+			if ret != False:
+				
+
+			#if check_intersections(key,sigDicts[i]):
+			#	for x in uSigs[i][key]:
+			#		tSet.add(x)
 
 		validSets.append(tSet)
-
 
 	# Merge all sets:
 	out = set(x for x in range(0,len(sigsIn)))
 	for i in range(0,len(validSets)):
 		if validSets[i] != None:
 			out &= validSets[i]
-
+	
 	return [sigsIn[x] for x in out]
 
-	'''
-	# Iterate through all potential signatures
-	for signature in sigsIn:
-		#print(eSchars)
-		#print("Checking ",signature)
-		valid = True
 
-		# Check against sigDicts for each word in sentence
-		for i in range(0,len(sigDicts)):
-			# Pass on any sigDict that is None:
-			if sigDicts[i] == None:
-				continue
-
-			# Determine if the signature has any shared encoded chars
-			sEncChars = set(sigDicts[i].keys())
-			sEncChars = sEncChars & setOftChars
-			
-			iTuples = get_sig_tuples(eSchars,signature, sEncChars)
-
-			#print("\tiTuples",iTuples)
-
-			# Ignore any words with no shared characters
-			if len(iTuples) != 0:
-				# Check intersections.  If this returns true, it means that
-				# the current signature invalidated that word
-				if check_intersections(iTuples, sigDicts[i]):
-					continue
-				else:
-					# TODO: incorporate a threshold here
-					valid = False
-					break
-
-		if valid == True:
-			validSigs.append(signature)
-
-	return validSigs
-	'''
 
 
 
