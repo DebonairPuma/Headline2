@@ -139,6 +139,7 @@ from setSolver import *
 from retrieveKey import *
 from searchTree import *
 from TestingFuncs import *
+from sigSolver import *
 
 ###########################################################
 # CONFIGURATION
@@ -154,6 +155,14 @@ encStrs = [	"LMWQLX NRQSKV QY SKXMLINVML ZLNHHMH LMEQLVMX OK JNG",
 			"UEA ITKZ JPZVPZZTZ E FTPYYS PRZ ZRWF",
 			"UCF CMJCZMJCU RH GOSFQX HMGXU GRDQN O HMXU VDYV",
 			"HPQFRC BRFFSRB OQFJ EQIERC TGG MKBBRPDRU"] #UNITED SETTLES WITH KICKED-OFF PASSENGER 
+'''
+# US DEC 17
+encStrs = [	"QBOKHP YCSWDWNRDEJ JDO SHTDWR SHJX FHCX EBN",
+			"FIBMX TUDWBJ WPBIE MUPPC POPU PBUIDPU",
+			"LWSICNIC VAMGIC WCMBLI YR WE ERMXZ QTQCFL",
+			"QHYIC KQCBQ M L LWSRRAL ZIY BXHAMO RH DMICYR CBWQX LYMFIXYL",
+			"WJCJQIE FQISC OGQAQY PS C U YJJN PSUQJIYJ PS CIPEV RIV"] 
+'''
 
 class HEADLINE(object):
 	# An object for storing an encoded headline and some relevant data about it
@@ -206,340 +215,6 @@ class HEADLINE(object):
 			self.solved = True
 		if self.numFailed > 0:
 			self.failed = True
-
-
-def selectWords2Trim(encStr,patDict):
-	# This function will try several methods to determine which words are eligible for
-	# singleSetTrim/singleSetTrim_thorough.
-	# Word stats-> numCharacters, numSharedCharacters, numMatches, 
-	# First challenge, eliminate any words that share no characters with other words
-	
-	maxListLen = 10000
-
-	#print(encStr)
-	start = time.time()
-	words = encStr.split(' ')
-	while "" in words:
-		words.remove("")
-
-	matches = []
-	for i in range(0,len(words)):
-		matches.append(getMatches(words[i],patDict))
-		#print(words[i],"->",len(matches[i]),"matches")
-
-	# Try an initial shakedown process, basically just running setSovle:
-	# this is straight from setSolve
-	matches = setSolve_slim(words,matches)
-
-	# TODO: improve this ranking process.  Speed is probably more important than
-	# 		precision here, so simple is better
-	stats = []
-	for i in range(0,len(words)):
-		shared = 0
-		cSet = set(words[i])
-		
-		for j in range(0,len(words)):
-			if i == j:
-				continue
-
-			tSet = set(words[j])
-			shared += len(tSet & cSet)
-
-		stats.append((i,shared))
-
-	#print(stats)
-	stats = sorted(stats,key=lambda s: s[1])[::-1]
-	#print("post sort: ",stats[::-1])
-
-	# Remove any words that are unlikely to be useful:
-	fstats = []
-	for stat in stats:
-		if len(matches[stat[0]]) < maxListLen:
-			# Ignore any words that are too short
-			if len(words[stat[0]]) > 2:
-				if stat[1] > 2:
-					fstats.append(stat)
-
-
-	#print("trimming\n")
-	# After every iteration, try running getSets again:
-	for i in range(0,len(fstats)):
-		#print("trying:", words[stats[i][0]])
-		if len(matches[fstats[i][0]]) > maxListLen:
-			# skip any that will take too long
-			continue
-		matchList = singleSetTrim_thorough(words,matches,fstats[i][0],1)
-		#matchList = singleSetTrim(words,matches,fstats[i][0],1)
-		matches[fstats[i][0]] = matchList
-		matches = setSolve_slim(words,matches)
-
-
-	# Try a second pass- eventually want to replace this with a loop
-	for i in range(0,len(fstats)):
-		#print("trying:", words[stats[i][0]])
-		if len(matches[fstats[i][0]]) > maxListLen:
-			# skip any that will take too long
-			continue
-		matchList = singleSetTrim_thorough(words,matches,fstats[i][0],1)
-		#matchList = singleSetTrim(words,matches,fstats[i][0],1)
-		matches[fstats[i][0]] = matchList
-		matches = setSolve_slim(words,matches)
-
-	stop = time.time()
-	#print("FINISHED! in ", stop-start,"seconds")
-	#for i in range(0,len(words)):
-	#	print(words[i],"->",len(matches[i]),"matches")
-	#	if len(matches[i]) <5:
-	#		print("\t",matches[i])	
-	#print("######################\n")
-
-	val = getSets(words,matches)
-	return val[1]
-
-def get_shared_chars(encWords, sel):
-	# Given a list of encoded words and a selection, return a list of all the characters in 
-	# the selection that appear in at least one other word of length > 1
-	# TODO: Experiment with changing the threshold to length > 2
-	
-	# Get the set of characters in sel
-	a = set(encWords[sel])
-	tStr = ""
-	for i in range(0,len(encWords)):
-		if i != sel and len(encWords[i]) > 1:
-			tStr += encWords[i]
-	# Set of all other characters
-	b = set(tStr)
-
-	# Return the intersection of a & b
-	return a & b
-
-def get_sig_sel(encWord, sChars, matches):
-	# Given an encoded word, the characters it shares with other words
-	# and a list of potential matches, returns a dictionary where the keys 
-	# are unique signatures, and the values are the lists of indexes where the 
-	# signature occurs
-
-	# Note a signature is a string of the clear characters that the shared characters
-	# in a word map to.
-
-	# First determine the positions we want to check:
-	positions = []
-	for char in sChars:
-		positions.append(encWord.find(char))
-
-	# Now produce the dictionary
-	sigDict = {}
-
-	# Iterate through all matches
-	for i in range(0,len(matches)):
-		# Determine the signature of the match
-		tSig = ""
-		for pos in positions:
-			tSig += matches[i][pos]
-
-		# Add to the dictionary:
-		if tSig in sigDict:
-			# Entry already appears, append the index to the existing list
-			sigDict[tSig].append(i)
-		else:
-			# Entry does not yet exist, create one			
-			sigDict[tSig] = [i]
-
-	return sigDict
-
-def get_char_sigs(encWord,sChars, matches):
-	# Same concept as above, but instead we have a nested dictionary
-	# where outDict[encChar][clrChar] = set of match indexes
-
-	# First determine the positions we want to check:
-	positions = []
-	for char in sChars:
-		positions.append(encWord.find(char))
-
-	outDict = {}
-	for pos in positions:
-		outDict[encWord[pos]] = {}
-
-
-	for i in range(0,len(matches)):
-
-		for pos in positions:
-			if matches[i][pos] in outDict[encWord[pos]]:
-				# Entry already exists
-				outDict[ encWord[pos] ] [ matches[i][pos] ].append(i)
-			else:
-				# Entry does not yet exist
-				outDict[ encWord[pos] ] [ matches[i][pos] ] = [i]
-
-	# Convert all lists to sets:
-	# TODO: Time this to figure out if it is actually worth doing
-	# 		Compare with the time it takes to do it when we create the 
-	#		set as we go
-
-	for key1 in outDict:
-		for key2 in outDict[key1]:
-			outDict[key1][key2] = set(outDict[key1][key2])
-
-	return outDict
-
-def get_all_sigDicts(encWords,matches):
-	# Returns a list containing the sigDicts for each word
-	# if an encoded word does not need a sigDict (no shared characters, length of 1)
-	# then its position in the list will be None
-	# Each sigdict in the list is: sigDict[encChar][clrChar] = set of match indexes
-
-	sigDicts = []
-	for i in range(0,len(encWords)):
-		if len(encWords[i]) < 2:
-			sigDicts.append(None)
-			break
-		
-		sChars = list(get_shared_chars(encWords,i))
-		if len(sChars) < 2:
-			sigDicts.append(None)
-			break
-
-		sigDicts.append(get_char_sigs(encWords[i],sChars, matches[i]))
-
-	return sigDicts
-
-def check_intersections(mapping, sigDict):
-	# given a mapping (a list of (enc, clr) tuples), and a sigDict
-	# Determine if the mapping is valid.  Returns true or false
-	# Recall: sigDict[encChar][clrChar] = set of match indexes
-	#print("\t\tin intersections")
-	#for key in sigDict:
-	#	print(key,sigDict[key].keys())
-	#	print()
-
-	sets = []	
-	try:
-		
-		for item in mapping:
-			sets.append(sigDict[item[0]][item[1]])
-		#print("\t\tno key error")
-	except KeyError:
-		# If a key error occurs, the mapping cannot be valid
-		#print("\t\tkey error")
-		return False
-
-	# MAKE A COPY OF THAT SET!!!
-	# That took an hour to debug
-	x = set(sets[0])
-	
-	for curr in sets:
-		#print("Curr set:",curr)
-		x &= curr
-		if len(x) == 0:
-			return False
-
-	#print("\t\t\tSUCESS\n")
-	#print("\t\t\t",x)
-	return True
-
-def get_sig_tuples(encSig, clrSig, tChars):
-	# Just creates a list of (encChar,clrChar) tuples
-	#out = [(encSig[i],clrSig[i]) for i in range(0,len(encSig))]
-	#return out
-	# Slightly more useable version, only creates tuples for shared chars
-	# encSig is the signature of the selected word
-	# clrSig is the signature assosciated with that
-	# tChars is a string or list of characters we want to include in 
-	# our intersection check
-
-
-	a = [x for x in encSig]
-	b = [x for x in clrSig]
-	out = []
-	for i in range(0,len(encSig)):
-		if encSig[i] in tChars:
-			out.append((a[i],b[i]))
-
-	return out
-
-def find_valid_signatures(eSchars, sigsIn, sigDicts):
-	# TODO: Try to make this make sense.  Seriously WTF.
-	# TODO: Once it's easier to understand, try optimizing it.
-	# Checks to see which signatures (if any) are valid
-	validSigs = []
-
-	setOftChars = set(eSchars)
-
-	# Iterate through all potential signatures
-	for signature in sigsIn:
-		#print(eSchars)
-		#print("Checking ",signature)
-		valid = True
-
-		# Check against sigDicts for each word in sentence
-		for i in range(0,len(sigDicts)):
-			# Pass on any sigDict that is None:
-			if sigDicts[i] == None:
-				continue
-
-			# Determine if the signature has any shared encoded chars
-			sEncChars = set(sigDicts[i].keys())
-			sEncChars = sEncChars & setOftChars
-			
-			iTuples = get_sig_tuples(eSchars,signature, sEncChars)
-
-			#print("\tiTuples",iTuples)
-
-			# Ignore any words with no shared characters
-			if len(iTuples) != 0:
-				# Check intersections.  If this returns true, it means that
-				# the current signature invalidated that word
-				if check_intersections(iTuples, sigDicts[i]):
-					continue
-				else:
-					# TODO: incorporate a threshold here
-					valid = False
-					break
-
-		if valid == True:
-			validSigs.append(signature)
-
-	return validSigs
-
-
-
-def signature_main(words, matches, sel, patDict):
-	#print(matches[sel][5])
-
-	# Get the list of significant characters for selected word:
-	selSchars = list(get_shared_chars(words, sel))
-
-	#print("selSchars")
-	#print(selSchars)
-
-	# Get the dict of signatures for the selected word
-	# selSIgs: Keys="clrSig", Values=[matches with that clrSig]
-	selSigs = get_sig_sel(words[sel],selSchars, matches[sel])
-
-	#print("selSigs")
-	#print(selSigs)
-
-	# Get the character dictionaries for each other word
-	# charDicts[0]->charDict[encChar][clrChar] = set of match indexes
-	charDicts = get_all_sigDicts(words,matches)
-
-	#print("charDicts")
-	#print(charDicts)
-
-	# Run find valid signatures:
-	ret = find_valid_signatures(selSchars, selSigs.keys(), charDicts)
-
-	# Ret is a list of valid signatures, combine the ones that are OK
-	# and then fetch the valid matches
-	vindexes = []
-	out = []
-
-	for vsig in ret:
-		for index in selSigs[vsig]:
-			out.append(matches[sel][index])
-
-	return out
-
 
 def main():
 	# Check for input arguments
@@ -605,15 +280,29 @@ def main():
 		matches.append(getMatches(words[i],patDict))
 
 	start = time.time()
-	print(signature_main(words, matches, 0, patDict))
+	trimmed1 = signature_main(words, matches, 0, patDict)
 	stop = time.time()
 	print(len(matches[0]))
 	print("done in", stop-start)
-
+	print(trimmed1)
+	exit()
 	start = time.time()
-	print(singleSetTrim_thorough(words,matches,0,1))
+	trimmed2 = singleSetTrim_thorough(words,matches,0,1)
 	stop = time.time()
 	print("done in", stop-start)
+
+	# Sigs from first round
+	schars1 = list(get_shared_chars(words, 0))
+	sigsel1 = get_sig_sel(words[0], schars1, trimmed1)
+	print("sigs from first round")
+	print(sigsel1.keys())
+	print("sigs from second round round")
+
+	schars2 = list(get_shared_chars(words, 0))
+	sigsel2 = get_sig_sel(words[0], schars2, trimmed2)
+	print(sigsel2.keys())
+
+
 
 
 
