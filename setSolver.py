@@ -60,6 +60,8 @@ def setSolve_slim(words,matches):
 		ret = setTrim(words,val[1],matches)
 		matches = ret[0]
 		count = ret[1]	
+	#for key in val[1]:
+	#	print(key,len(val[1][key]),val[1][key])
 	return matches
 
 def getSets(encWords,matches):

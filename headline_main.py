@@ -128,7 +128,7 @@ from setSolver import *
 from retrieveKey import *
 from searchTree import *
 from TestingFuncs import *
-from sigSolver import *
+from sigSolver2 import *
 
 ###########################################################
 # CONFIGURATION
@@ -205,6 +205,101 @@ class HEADLINE(object):
 		if self.numFailed > 0:
 			self.failed = True
 
+
+def selectWords2Trim2(encStr,patDict):
+	# This function will try several methods to determine which words are eligible for
+	# singleSetTrim/singleSetTrim_thorough.
+	# Word stats-> numCharacters, numSharedCharacters, numMatches, 
+	# First challenge, eliminate any words that share no characters with other words
+	
+	maxListLen = 10000
+
+	#print(encStr)
+	#start = time.time()
+	words = encStr.split(' ')
+	while "" in words:
+		words.remove("")
+
+	matches = []
+	for i in range(0,len(words)):
+		matches.append(getMatches(words[i],patDict))
+		#print(words[i],"->",len(matches[i]),"matches")
+
+	# Try an initial shakedown process, basically just running setSovle:
+	# this is straight from setSolve
+	matches = setSolve_slim(words,matches)
+
+	# TODO: improve this ranking process.  Speed is probably more important than
+	# 		precision here, so simple is better
+	stats = []
+	for i in range(0,len(words)):
+		shared = 0
+		cSet = set(words[i])
+		
+		for j in range(0,len(words)):
+			if i == j:
+				continue
+
+			tSet = set(words[j])
+			shared += len(tSet & cSet)
+
+		stats.append((i,shared))
+
+	#print(stats)
+	stats = sorted(stats,key=lambda s: s[1])[::-1]
+	#print("post sort: ",stats[::-1])
+
+	# Remove any words that are unlikely to be useful:
+	fstats = []
+	for stat in stats:
+		if len(matches[stat[0]]) < maxListLen:
+			# Ignore any words that are too short
+			if len(words[stat[0]]) > 2:
+				if stat[1] > 2:
+					fstats.append(stat)
+
+
+	#print("trimming\n")
+	# After every iteration, try running getSets again:
+	for i in range(0,len(fstats)):
+		#print("trying:", words[stats[i][0]])
+		if len(matches[fstats[i][0]]) > maxListLen:
+			# skip any that will take too long
+			continue
+		#matchList = singleSetTrim_thorough(words,matches,fstats[i][0],1)
+		ss = SigSolver(words,matches)
+		matchList = ss.sigTrim(fstats[i][0])
+			
+		matches[fstats[i][0]] = matchList
+		matches = setSolve_slim(words,matches)
+
+
+	# Try a second pass- eventually want to replace this with a loop
+	for i in range(0,len(fstats)):
+		#print("trying:", words[stats[i][0]])
+		if len(matches[fstats[i][0]]) > maxListLen:
+			# skip any that will take too long
+			continue
+		#matchList = singleSetTrim_thorough(words,matches,fstats[i][0],1)
+		#matchList = singleSetTrim(words,matches,fstats[i][0],1)
+		ss = SigSolver(words,matches)
+		matchList = ss.sigTrim(fstats[i][0])
+
+		matches[fstats[i][0]] = matchList
+		matches = setSolve_slim(words,matches)
+
+	#stop = time.time()
+	#print("FINISHED! in ", stop-start,"seconds")
+	#for i in range(0,len(words)):
+	#	print(words[i],"->",len(matches[i]),"matches")
+	#	if len(matches[i]) <5:
+	#		print("\t",matches[i])	
+	#print("######################\n")
+
+	val = getSets(words,matches)
+	return val[1]
+
+
 def main():
 	# Check for input arguments
 	if len(sys.argv) > 1:
@@ -255,10 +350,11 @@ def main():
 				else:
 					valid = False
 					break
-			if valid == True:
-				tencStrs.append(test.encStrs[i])
-				tclrStrs.append(test.clrStrs[i])
+			#if valid == True:
+			tencStrs.append(test.encStrs[i])
+			tclrStrs.append(test.clrStrs[i])
 
+	'''
 	words = encStrs[4].split(" ")
 	while "" in words:
 		words.remove("")
@@ -268,7 +364,25 @@ def main():
 	for i in range(0,len(words)):
 		matches.append(getMatches(words[i],patDict))
 
+	print(matches[0])
+	val = setSolve_slim(words,matches)
+	print("############################################\n\n",matches[0])
 
+	start = time.time()
+	ss = SigSolver(words,matches)
+	matches[0] = ss.sigTrim(0)
+	stop = time.time()
+	print("first pass",stop-start)
+	
+	start = time.time()
+	selectWords2Trim2(encStrs[0],patDict)
+	stop = time.time()
+	print("sw2t2",stop-start)
+	'''
+
+
+
+	'''
 	start = time.time()
 	print(singleSetTrim_thorough(words,matches,0,1))
 	trimmed1 = signature_main(words, matches, 0, patDict)
@@ -317,12 +431,12 @@ def main():
 	schars2 = list(get_shared_chars(words, 0))
 	sigsel2 = get_sig_sel(words[0], schars2, trimmed2)
 	print(sigsel2.keys())
-
-
-
-
-
 	'''
+
+
+
+
+	
 	print("From ",len(tests)*5,"test cases, found",len(tencStrs),"which should be solvable")
 	print("Trying set solver on all cases:")
 
@@ -336,19 +450,25 @@ def main():
 	Sextra = 0
 	tsolved = 0
 	ssolved = 0
+	tfailed = 0
+	sfailed = 0
 
 	for testStr in tencStrs:
 		t1 = time.time()
-		ret = selectWords2Trim(testStr,patDict)
+		ret = selectWords2Trim2(testStr,patDict)
 		t2 = time.time()
 		ttrim += t2-t1
 		tmp = 0
 		for key in ret:
+			if len(ret[key]) == 0:
+				tfailed += 1
+				break
 			if len(ret[key]) != 1:
 				tmp += len(ret[key]) - 1
 				Textra += len(ret[key]) - 1
-		if tmp < 10:
-			tsolved+=1
+		if tmp < 15:
+			if tmp != 0:
+				tsolved+=1
 
 		t1 = time.time()
 		ret = setSolve(testStr,patDict)
@@ -356,11 +476,16 @@ def main():
 		tsets += t2-t1
 		tmp = 0
 		for key in ret:
+			if len(ret[key]) == 0:
+				sfailed += 1
+				break
 			if len(ret[key]) != 1:
 				tmp += len(ret[key]) - 1
 				Sextra += len(ret[key]) - 1
-		if tmp<10:
-			ssolved +=1
+		if tmp<15:
+			if tmp != 0:
+				ssolved+=1
+
 
 		#if extra > threshold:
 		#	for key in ret:
@@ -375,8 +500,10 @@ def main():
 	print("DONE!\n\tTrim Time: ",ttrim,"\n\tSets Time: ",tsets)
 	print("\t\tTrim had ",Textra,"extraneous and", tsolved,"perfect or near perfect solves")
 	print("\t\tSets had ",Sextra,"extraneous and", ssolved,"perfect or near perfect solves")
+	print("\t\ttrim had ",tfailed,"failures")
+	print("\t\tSets had ",sfailed,"failures")
 	#print("Of ",len(tencStrs),"strings tested ", goodsolves,"strings were below the threshold of",threshold)
-	'''
+	
 
 	'''
 	# Runs single set solver on all tests
