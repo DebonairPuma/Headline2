@@ -124,7 +124,8 @@ def getMatches(encWord,patDict):
 					word = match[0]+match[1]+match[2]
 					matches.append(word)
 		except KeyError:
-			print("This word",encWord,"has no pattern. Good luck with that!")
+			pass
+			#print("This word",encWord,"has no pattern. Good luck with that!")
 			
 	return matches
 
@@ -144,7 +145,8 @@ def updatePartial(key,val,Dict):
 	return pDict
 
 def printPartial(pDict,line,pFlag):
-	newline = ""
+	#print(pDict)
+	newLine = ""
 	for i in range(0,len(line)):
 		if line[i] in pDict:
 			newLine = newLine + pDict[line[i]]
@@ -155,18 +157,14 @@ def printPartial(pDict,line,pFlag):
 		print(line)
 	return newLine
 
-def getChains(cStr,eStr):
-	# TODO: Revisit this now that we have a better understanding of python sets, see if there's a better way
-	# Takes plain-> encoded dictionary
-	cStr = cStr.upper()
-	eStr = eStr.upper()
+def getChains(pDict):
 	chains = []
 	alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
+	e2cDict = pDict
 	c2eDict = {}
-	e2cDict = {}
-	c2eDict = updatePArtial(cStr,eStr,c2eDict)
-	e2cDict = updatePartial(eStr,cStr,e2cDict)
+
+	for key in pDict:
+		c2eDict[pDict[key]] = key
 
 	while len(alpha) != 0:
 		curr = alpha[0]

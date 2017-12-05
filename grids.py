@@ -32,6 +32,7 @@ class GRID(object):
 		self.ingestChains()
 
 		self.changes = None
+		self.seedGrid(seedPos,seed)
 		self.growGrid()
 
 	def ingestChains(self):
