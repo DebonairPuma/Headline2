@@ -172,9 +172,9 @@ class HEADLINE(object):
 	# Stats: Number of unique letters
 	# Letters by frequency
 	# 
-	def __init__(self,encStr,patDict,pDict):
+	def __init__(self,encStr,patDict,pDict,index):
 		# Initialize status variables:
-		
+		self.index = index # Keeps track of which line this one is.
 		# sDict contains exactly one character for every character in it
 		self.solved = False
 
@@ -393,6 +393,47 @@ class HEADLINE(object):
 
 		val = getSets(words,matches)
 		return val[1]
+
+
+def SOLVER(encStrs,patDict,tree):
+	# This is the main function for solving the puzzle for each month.  Keeps
+	# everything organized and makes calls to working functions.
+	headlines = []
+	start = time.time()
+	# First, initialize all of the headlines
+	for i in range(0,len(encStrs)):
+		headlines.append(HEADLINE(encStrs[i],patDict,None,i))
+	stop = time.time()
+	print("Finished initialization in: ", stop-start)
+
+	# Check statuses for each line, add full or partial solves to one list
+	# and failed/incomplete to another
+	goodLines = []
+	badLines  = []
+	for headline in headlines:
+		if headline.solved == True or headline.partial == True:
+			goodLines.append(headline)
+		else:
+			badLines.append(headline)
+
+	if len(goodLines) > 1:
+		# Ready to start making chains
+		pass
+	else:
+		# Try running omitWords on the remaining ones
+		
+
+
+
+
+	for i in range(0,len(encStrs)):
+		print("Line: ",i)
+		printPartial(headlines[i].pDict,encStrs[i],True)
+		print()
+	for i in range(0,len(encStrs)):
+		print("Omitted version:",i)
+		headlines[i].omitWords(None)
+
 
 def main():
 	# Check for input arguments

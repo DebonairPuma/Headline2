@@ -156,18 +156,14 @@ def printPartial(pDict,line,pFlag):
 		print(line)
 	return newLine
 
-def getChains(cStr,eStr):
-	# TODO: Revisit this now that we have a better understanding of python sets, see if there's a better way
-	# Takes plain-> encoded dictionary
-	cStr = cStr.upper()
-	eStr = eStr.upper()
+def getChains(pDict):
 	chains = []
 	alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
+	e2cDict = pDict
 	c2eDict = {}
-	e2cDict = {}
-	c2eDict = updatePartial(cStr,eStr,c2eDict)
-	e2cDict = updatePartial(eStr,cStr,e2cDict)
+
+	for key in pDict:
+		c2eDict[pDict[key]] = key
 
 	while len(alpha) != 0:
 		curr = alpha[0]
