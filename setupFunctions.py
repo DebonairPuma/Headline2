@@ -197,6 +197,55 @@ def getChains(pDict):
 
 	return chains
 
+def largestSets(listA,listB):
+	# Takes two lists of chains, A and B
+	# First, determine which items in A and B are linked
+	# Then connects them all and determines the size of the linked set
+	# Returns a list with an identifier for each distinct set and it's size
+	setA = set(listA)
+	setB = set(listB)
+
+	# returns results, which is a list of tuples (Chain from A, Super Set Length)
+	results = []
+
+	while len(setA) != 0:
+		currS = set()
+		changes = 1
+
+		# Pull an item from A		
+		tmp = setA.pop()
+		
+		# Add it to current set:
+		currS |= set(tmp)
+
+		# Iterate through 
+		while changes > 0:
+			changes = 0
+			toDiscard = []
+			for item in setB:
+				if len(currS & set(item)) >0:
+					toDiscard.append(item)
+					#setB.discard(item)
+					currS |= set(item)
+					changes += 1
+
+			for x in toDiscard:
+				setB.discard(x)
+
+			toDiscard = []
+			for item in setA:
+				if len(currS & set(item)) >0:
+					toDiscard.append(item)
+					#setA.discard(item)
+					currS |= set(item)
+					changes += 1
+
+			for x in toDiscard:
+				setA.discard(x)
+		# Append results:
+		results.append((tmp,len(currS)))
+	return results
+
 def getSetting(fullStr,clrStrings,encStrings,tree):
 	# TODO: Set this up with a manual flag.  If we weren't able to find a valid setting, allow the user to look at it
 	#		If no valid words are found, we're going to just try getKey on all possible shifts

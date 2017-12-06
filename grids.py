@@ -33,11 +33,11 @@ class GRID(object):
 		self.ingestChains()
 
 		self.changes = None
-		self.seedGrid(seedPos,seed)
+		# Seed the grid:
+		self.grid[seedPos][seedPos].fill(seed)
 		self.growGrid()
 
 	def ingestChains(self):
-
 		# hor chains left to right
 		for chain in self.hChain:
 			for i in range(0,len(chain)-1):
@@ -60,9 +60,6 @@ class GRID(object):
 			for i in range(0,len(chain)-1):
 				self.uD[chain[i]] = chain[i+1]
 
-	def seedGrid(self,pos,char):
-		self.grid[pos][pos].fill(char)
-
 	def growGrid(self):
 		while self.changes != 0:
 			self.changes = 0
@@ -70,7 +67,6 @@ class GRID(object):
 				for y in range(0,self.size):
 					# cell has character, but neighbors haven't been filled
 					self.tryFill(x,y)
-			#self.printGrid()
 
 	def tryFill(self,x,y):
 		if (self.grid[x][y].hasChar == True) and (self.grid[x][y].done == False):
@@ -129,48 +125,9 @@ class GRID(object):
 			print(y,":\t",xStr)
 		print("\n")
 
-	def findLongest(self):
-		longX = ""
-		longY = ""
-
-		for x in range(0,self.size):
-			ty = ""
-			for y in range(0,self.size):
-				if self.grid[x][y].char == None:
-					ty = ""
-				else:
-					ty = ty +self.grid[x][y].char
-				if len(ty) > len(longY):
-					longY = ty
-
-		for y in range(0,self.size):
-			tx = ""
-			for x in range(0,self.size):
-				if self.grid[x][y].char == None:
-					tx = ""
-				else:
-					tx = tx +self.grid[x][y].char
-				if len(tx) > len(longX):
-					longX = tx
-
-		print("longest strings:")
-		print("x:",longX)
-		print("y:",longY)
-		print("\n")
-
-		xset = set()
-		yset = set()
-		for char in longX:
-			xset.add(char)
-		for char in longY:
-			yset.add(char)
-
-		if len(yset) > len(xset):
-			return longY
-		else:
-			return longX
-
 	def extractChains(self):
+		# TODO: This can be slimmed down considerably, not any faster, just
+		# 		easier to look at
 		# Returns a list of the longest chains in the X & Y directions
 		hDict = {}
 		for y in range(0,self.size):
@@ -257,7 +214,6 @@ class GRID(object):
 				vChains.append(tstr)
 
 		return(hChains,vChains)
-
 
 	def autoSearch(self,words,uChars,tree):
 		# Attempts to solve a headline using the grid
@@ -351,3 +307,45 @@ class GRID(object):
 						return val
 					except:
 						pass
+
+	def findLongest(self):
+		# TODO: This function can probably be removed, extract chains is better
+		longX = ""
+		longY = ""
+
+		for x in range(0,self.size):
+			ty = ""
+			for y in range(0,self.size):
+				if self.grid[x][y].char == None:
+					ty = ""
+				else:
+					ty = ty +self.grid[x][y].char
+				if len(ty) > len(longY):
+					longY = ty
+
+		for y in range(0,self.size):
+			tx = ""
+			for x in range(0,self.size):
+				if self.grid[x][y].char == None:
+					tx = ""
+				else:
+					tx = tx +self.grid[x][y].char
+				if len(tx) > len(longX):
+					longX = tx
+
+		print("longest strings:")
+		print("x:",longX)
+		print("y:",longY)
+		print("\n")
+
+		xset = set()
+		yset = set()
+		for char in longX:
+			xset.add(char)
+		for char in longY:
+			yset.add(char)
+
+		if len(yset) > len(xset):
+			return longY
+		else:
+			return longX 

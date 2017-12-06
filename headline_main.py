@@ -43,9 +43,15 @@ Once the 26 long string is found, we'll attempt to extract the setting, key, and
 	the user
 10. Implement the single chain solver as a a stepping stone on the way to getting
     two complete solves.
-11. Prepare handoff between single line solvers and geometric solvers.
 12. Polish omitWords method in HEADLINE/evaluate it's performance.  Initial results
 	look pretty good tbh
+13. Develop a method for updating HEADLINE objects with results from grid solver
+14. Develop a method for selecting the best grid to use...
+
+15. Make a version of setSolve that takes a set of encoded words rather than a string-
+    so we can omit certain words.
+
+16. Low priority- spend some time optimizingn sigSolver
 
 NOTES:
 11/21/17: Ran several tests comparing setSolve with removeSingles on/off, only on strings that contained only valid
@@ -124,8 +130,6 @@ NOTES:
 				OAM CEPP YMJYHEQYGR CERW   IYKAGL RD SLI LBHEGX GOP XSQYI
 				FOX WILL EXPERIMENT WITH   SECOND TV ADS DURING NFL GAMES
 
-	TODO: 
-
 '''
 
 ###########################################################
@@ -139,7 +143,8 @@ from setSolver import *
 from retrieveKey import *
 from searchTree import *
 from TestingFuncs import *
-from sigSolver2 import *
+from copy import copy
+from solver_main import *
 
 ###########################################################
 # CONFIGURATION
@@ -164,255 +169,6 @@ encStrs = [	"QBOKHP YCSWDWNRDEJ JDO SHTDWR SHJX FHCX EBN",
 			"WJCJQIE FQISC OGQAQY PS C U YJJN PSUQJIYJ PS CIPEV RIV"] 
 
 
-class HEADLINE(object):
-	# An object for storing an encoded headline and some relevant data about it
-	# Stats: Number of unique letters
-	# Letters by frequency
-	# 
-	def __init__(self,encStr,patDict,pDict,index):
-		# Initialize status variables:
-		self.index = index # Keeps track of which line this one is.
-		# sDict contains exactly one character for every character in it
-		self.solved = False
-
-		# sDict contains some fully solved characters, and no empty sets
-		self.partial = False
-
-		# sDict contains one or more empty sets (probably all empty sets)
-		# Usually means the encoded string contains an unknown word. omitWords
-		# may be able to find a solution.
-		self.failed = False
-
-		# sDict contains too many extraneous characters, solution may
-		# not be possible via sigSolve or setSolve
-		self.incomplete = False
-
-		# encStr is the headline we wish to solve
-		# pDict contains any mappings we've already confirmed.
-		self.patDict = patDict
-		self.encStr = encStr
-		self.encWords = encStr.split(" ")
-		while "" in self.encWords:
-			self.encWords.remove("")
-
-		self.uChars = set(encStr)
-		self.uChars.discard(' ')
-
-		self.allMatches = []
-		for i in range(0,len(self.encWords)):
-			self.allMatches.append(getMatches(self.encWords[i],self.patDict))
-
-		# Run Set Solve
-		self.sDict = setSolve(self.encStr,self.patDict)
-
-		# Evaluate sDict and set status accordingly
-		self.getStatus()
-
-		if self.failed ==False and self.solved == False:
-			# If failed, implies we have an unknown word
-			# If not solved, implies sigSolve may yet be effective
-			words = self.encStr.split(' ')
-			while "" in words:
-				words.remove("")
-
-			self.sDict = self.sigSolve(words, self.patDict)
-			self.getStatus()
-
-		# Create a partial Dictionary:
-		self.generatepDict()
-
-	def omitWords(self,clrStr):
-		# Try using sigSolver but omit a single word at a time until success:
-		# This is a painfully simple, yet semi effective method for 
-		# handling words that aren't in the dictionary
-		
-
-		# TODO: This can generate more than one solution.  We need to detect when that
-		# 		happens and account for it somehow.  Determine which solution is the 
-		# 		best, or which combination is the best
-		# How many potential solutions do we have?
-		potentialSolves = 0
-
-
-		words = self.encStr.split(' ')
-		while "" in words:
-			words.remove("")
-
-		for i in range(0,len(words)):
-			# Ignore any words that are length 1 or 2:
-			if len(words[i]) > 2:
-				wcopy = list(words)
-				del wcopy[i]
-				self.sDict = self.sigSolve(wcopy,self.patDict)
-				self.failed = False
-				self.getStatus()
-
-				# TODO: Identify incomplete solves
-				if self.failed == False:
-					# For now, just keep track of total solutions, and call
-					# it a failure if more than one appears
-					potentialSolves +=1
-					self.generatepDict()
-					#print("Omitted: ",words[i])
-					#printPartial(self.pDict,self.encStr,True)
-					#if clrStr != None:
-					#	print(clrStr)
-					#print()
-
-		if potentialSolves > 1:
-			self.failed = True
-			self.partial = False
-
-	def generatepDict(self):
-		# Converts the current sDict into a pDict
-		self.pDict = {}
-		for key in self.sDict:
-			try:
-				items = list(self.sDict[key])
-				if len(items) == 1:
-					self.pDict[key] = items[0]
-				else:
-					pass
-			except TypeError:
-				pass
-
-
-	def getStatus(self):
-		# Evaluates sDict, if all entries map to exactly one letter, then 
-		# Solved is set to True
-		# If one or more sets has exactly one entry then partialSolved
-		# If one or more sets has zero, then failed
-		
-		# Number of unique characters in string
-		uChars = len(self.sDict.keys())
-
-		self.numSolved = 0
-		self.numFailed = 0
-		
-		if self.sDict == None:
-			return
-
-		for key in self.sDict:
-			if len(self.sDict[key]) == 0:
-				self.numFailed += 1
-			elif len(self.sDict[key]) == 1:
-				self.numSolved += 1
-
-		# Reset variables:
-		self.solved = False
-		self.partial = False
-		self.failed = False
-		self.incomplete = False
-
-		if self.numFailed > 0:
-			self.failed = True
-		elif self.numSolved >= 0:
-			self.partial = True
-			if self.numSolved == uChars:
-				self.solved = True
-		else:
-			self.incomplete = True
-
-	def sigSolve(self,words,patDict):
-		# This function will try several methods to determine which words are eligible for
-		# singleSetTrim/singleSetTrim_thorough.
-		# Word stats-> numCharacters, numSharedCharacters, numMatches, 
-		# First challenge, eliminate any words that share no characters with other words
-		
-		# TODO: Cleanup!
-
-		maxListLen = 10000
-
-		#print(encStr)
-		#start = time.time()
-
-
-		matches = []
-		for i in range(0,len(words)):
-			matches.append(getMatches(words[i],patDict))
-			#print(words[i],"->",len(matches[i]),"matches")
-
-		# Try an initial shakedown process, basically just running setSovle:
-		# this is straight from setSolve
-		matches = setSolve_slim(words,matches)
-
-		# TODO: improve this ranking process.  Speed is probably more important than
-		# 		precision here, so simple is better
-		stats = []
-		for i in range(0,len(words)):
-			shared = 0
-			cSet = set(words[i])
-			
-			for j in range(0,len(words)):
-				if i == j:
-					continue
-
-				tSet = set(words[j])
-				shared += len(tSet & cSet)
-
-			stats.append((i,shared))
-
-		#print(stats)
-		stats = sorted(stats,key=lambda s: s[1])[::-1]
-		#print("post sort: ",stats[::-1])
-
-		# Remove any words that are unlikely to be useful:
-		fstats = []
-		for stat in stats:
-			if len(matches[stat[0]]) < maxListLen:
-				# Ignore any words that are too short
-				if len(words[stat[0]]) > 2:
-					if stat[1] > 2:
-						fstats.append(stat)
-
-
-		#print("trimming\n")
-		# After every iteration, try running getSets again:
-		for i in range(0,len(fstats)):
-			#print("trying:", words[stats[i][0]])
-			if len(matches[fstats[i][0]]) > maxListLen:
-				# skip any that will take too long
-				continue
-			#matchList = singleSetTrim_thorough(words,matches,fstats[i][0],1)
-			ss = SigSolver(words,matches)
-			matchList = ss.sigTrim(fstats[i][0])
-				
-			matches[fstats[i][0]] = matchList
-			matches = setSolve_slim(words,matches)
-
-
-		# Try a second pass- eventually want to replace this with a loop
-		for i in range(0,len(fstats)):
-			#print("trying:", words[stats[i][0]])
-			if len(matches[fstats[i][0]]) > maxListLen:
-				# skip any that will take too long
-				continue
-			#matchList = singleSetTrim_thorough(words,matches,fstats[i][0],1)
-			#matchList = singleSetTrim(words,matches,fstats[i][0],1)
-			ss = SigSolver(words,matches)
-			matchList = ss.sigTrim(fstats[i][0])
-
-			matches[fstats[i][0]] = matchList
-			matches = setSolve_slim(words,matches)
-
-		#stop = time.time()
-		#print("FINISHED! in ", stop-start,"seconds")
-		#for i in range(0,len(words)):
-		#	print("\t",words[i],"->",len(matches[i]),"matches")
-		#	if len(matches[i]) <5:
-		#		print("\t\t",matches[i])	
-		#print("######################\n")
-
-		val = getSets(words,matches)
-		return val[1]
-
-	def getChains(self):
-		# Calls the getChains function with the current pDict
-		self.chains = getChains(self.pDict)
-
-	def checkSol(self):
-		# calls printPartial:
-		printPartial(self.pDict,self.encStr,True)
 
 def SOLVER(encStrs,patDict,tree):
 	# This is the main function for solving the puzzle for each month.  Keeps
@@ -491,17 +247,38 @@ def SOLVER(encStrs,patDict,tree):
 			  combos[0][2],
 			  26,
 			  13)
-	tg.printGrid()
+	#tg.printGrid()
 
 	print("extracting chains")
-	print(tg.extractChains())
+	bestChains = tg.extractChains()
+	hChains = bestChains[0]
+	vChains = bestChains[1]
 	inUse = set([combos[0][0][0],combos[0][0][1]])
 
-	# If additional chains are available, attempt to improve grid
-	# otherwise try running grid solve on bad headlines
+	# Get the best existing set size:
+	bestSet = combos[0][1]
 
 
-	# Try the set solver on all headlines that aren't in use:
+
+	# Try to build a better set using the other grids:
+	combos = []
+	for headline in headlines:
+		if headline.index not in inUse:
+			headline.getChains()
+			res = largestSets(headline.chains,hChains)
+			if len(res) != 0:
+				res = sorted(res,key=lambda s: s[1])[::-1]
+				combos.append(((headline.index,0),res[0][1],res[0][0][0]))
+
+			res = largestSets(headline.chains,vChains)
+			if len(res) != 0:
+				res = sorted(res,key=lambda s: s[1])[::-1]
+				combos.append(((headline.index,1),res[0][1],res[0][0][0]))
+
+	combos = sorted(combos,key=lambda s: s[1])[::-1]
+
+	print("************************************************")
+	print("BEFORE UPDATE")
 	for curr in headlines:
 		if curr.index not in inUse:
 			ret = tg.autoSearch(curr.encWords,curr.uChars,tree)
@@ -512,89 +289,52 @@ def SOLVER(encStrs,patDict,tree):
 			print()
 
 
+	if len(combos)>0:
+		if combos[0][1] > bestSet:
+			tg = GRID(headlines[combos[0][0][0]].chains,
+					  bestChains[combos[0][0][1]],
+					  combos[0][2],
+					  26,
+					  13)
+			inUse.add(combos[0][0][0])
+			print("New and improved grid:")
+			print("inUse:",inUse)
+			#tg.printGrid()
 
-	#TODO: May need a method for validating grids
-	#headlines[combos[0][0][0]].checkSol()
-	#headlines[combos[0][0][1]].checkSol()
-	#print("pDict",headlines[combos[0][0][0]].pDict)
+			print("************************************************")
+			print("AFTER UPDATE")
+			# Try the set solver on all headlines that aren't in use:
+			for curr in headlines:
+				#if curr.index not in inUse:
+				ret = tg.autoSearch(curr.encWords,curr.uChars,tree)
+				print("####################################")
+				for sol in ret[1]:
+					print("\t trying tryDict")
+					curr.tryDict(sol,False)
+					#printPartial(sol,curr.encStr,True)
+					
+				print()
 
+		else:
+			print("Couldn't improve grid!")
+			for curr in headlines:
+				#if curr.index not in inUse:
+				ret = tg.autoSearch(curr.encWords,curr.uChars,tree)
+				print("####################################")
+				for sol in ret[1]:
+					print("\t trying tryDict")
+					curr.tryDict(sol,False)
+					#printPartial(sol,curr.encStr,True)
+					
+				print()
 
+	else:
+		print("No additional chains available")
 
+	# If additional chains are available, attempt to improve grid
+	# otherwise try running grid solve on bad headlines
 
 	return True
-
-	#for i in range(0,len(encStrs)):
-	#	print("Line: ",i)
-	#	printPartial(headlines[i].pDict,encStrs[i],True)
-	#	print()
-	#for i in range(0,len(encStrs)):
-	#	print("Omitted version:",i)
-	#	headlines[i].omitWords(None)
-
-
-
-def largestSets(listA,listB):
-	# Takes two lists of chains, A and B
-	# First, determine which items in A and B are linked
-	# Then, if more than one set of items are linked, determine which is best
-	setA = set(listA)
-	setB = set(listB)
-
-	# returns results, which is a list of tuples (Chain from A, Super Set Length)
-	results = []
-
-	while len(setA) != 0:
-		currS = set()
-		changes = 1
-
-		# Pull an item from A		
-		tmp = setA.pop()
-		
-		# Add it to current set:
-		currS |= set(tmp)
-
-		# Iterate through 
-		while changes > 0:
-			changes = 0
-			toDiscard = []
-			for item in setB:
-				if len(currS & set(item)) >0:
-					toDiscard.append(item)
-					#setB.discard(item)
-					currS |= set(item)
-					changes += 1
-
-			for x in toDiscard:
-				setB.discard(x)
-
-			toDiscard = []
-			for item in setA:
-				if len(currS & set(item)) >0:
-					toDiscard.append(item)
-					#setA.discard(item)
-					currS |= set(item)
-					changes += 1
-
-			for x in toDiscard:
-				setA.discard(x)
-		# Append results:
-		results.append((tmp,len(currS)))
-	return results
-
-'''
-#Test Chains:
-mar17
-['ARTOKNLPS', 'BD', 'CZ', 'EM', 'FQIUWY', 'HX']
-['ANLPSGMEVRTO', 'BD', 'HZ', 'IUW', 'JY']
-['AZ', 'CSIEN', 'DO', 'FMWP', 'GU', 'HLQR', 'TX']
-['AY', 'BLUT', 'CE', 'DPWR', 'GH', 'INJO', 'MZ']
-
-feb17
-['AFR', 'BD', 'CSEY', 'GL', 'HI', 'KM', 'NPW', 'TU']
-['ALIXY', 'BS', 'CT', 'DOPU', 'ERM', 'FG']
-['ABCE', 'DLKR', 'HP', 'INWO', 'TY']
-'''
-
 
 def main():
 	# Check for input arguments
@@ -611,7 +351,7 @@ def main():
 		pickle.dump(patDict,open(tmp+"_pats.p","wb"))
 		pickle.dump(tree,open(tmp+"_tree.p","wb"))
 
-	
+	###################################################################################
 	# Import Pickled patDict and tree
 	print("Unpickling Tree and PatDict...")
 	start = time.time()
@@ -620,26 +360,14 @@ def main():
 	stop = time.time()
 	print("\tDone in:",stop-start,"seconds")
 	
-
-	# Load any special words from file, for now this is all the words that showed up in 
-	# the test cases, but weren't already in the list.  This is kind of cheating...
+	###################################################################################
+	# Load special words from file:
 	#print("Loading custom words from file")
 	#patDict = buildDict("customWords.txt",patDict)
 	#tree = buildTree("customWords.txt",tree)
 
 	# Load up the test files
 	tests = getTestFiles("testFiles.txt")
-
-
-	'''
-	# Run only first part on difficult headlines.  Used to improve omitWords
-	diffEncStrs = pickle.load(open("DifficultEncodedStrings.p","rb"))
-	diffClrStrs = pickle.load(open("DifficultClearStrings.p","rb"))
-	print(len(diffEncStrs))
-	for i in range(0,len(diffEncStrs)):
-		H = HEADLINE(diffEncStrs[i],patDict,None)
-		H.omitWords(diffClrStrs[i],patDict)
-	'''
 
 	# Full tests:
 	passed = 0
@@ -651,42 +379,23 @@ def main():
 		ans = SOLVER(test.encStrs,patDict,tree)
 		stop = time.time()
 		print("Finished in: ", stop-start)
-		
-		#for i in range(0,len(test.encStrs)):
-		#	print(test.encStrs[i])
-		#	print(test.clrStrs[i],"\n")
-		#exit()
+
 		if ans:
 			passed+=1
 		else:
 			failed+=1
 
 	print("passed:",passed,"failed:",failed)
-
-		#for i in range(0,len(test.encStrs)):
-			#print("Line: ",i)
-			#printPartial(headlines[i].pDict,test.encStrs[i],True)
-			#print(test.clrStrs[i])
-			#print()
 	
-
-	
-	# SOLVE SINGLE HEADLINE SET
-	'''
-	headlines = []
-	start = time.time()
-	for line in encStrs:
-		headlines.append(HEADLINE(line,patDict,None))
-	stop = time.time()
-	print("Finished initialization in: ", stop-start)
-	for i in range(0,len(encStrs)):
-		print("Line: ",i)
-		printPartial(headlines[i].pDict,encStrs[i],True)
-		print()
-	for i in range(0,len(encStrs)):
-		print("Omitted version:",i)
-		headlines[i].omitWords(None)
-	'''
-
 if __name__ == '__main__':
 	main()
+
+'''
+	# Run only first part on difficult headlines.  Used to improve omitWords
+	diffEncStrs = pickle.load(open("DifficultEncodedStrings.p","rb"))
+	diffClrStrs = pickle.load(open("DifficultClearStrings.p","rb"))
+	print(len(diffEncStrs))
+	for i in range(0,len(diffEncStrs)):
+		H = HEADLINE(diffEncStrs[i],patDict,None)
+		H.omitWords(diffClrStrs[i],patDict)
+'''
