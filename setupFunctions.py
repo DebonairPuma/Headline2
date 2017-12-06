@@ -158,38 +158,42 @@ def printPartial(pDict,line,pFlag):
 	return newLine
 
 def getChains(pDict):
-	chains = []
-	alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	# Takes a partial dictionary and returns a list of chains
+	
 	e2cDict = pDict
+	# Reverse pDict so we have a c2eDict:
 	c2eDict = {}
-
 	for key in pDict:
 		c2eDict[pDict[key]] = key
 
-	while len(alpha) != 0:
-		curr = alpha[0]
-		alpha = alpha.replace(curr,"")
-		chain = curr
+	uChars = set()	# Keep track of used characters
+	chains = []
 
-		while True:
-			if curr in c2eDict and c2eDict[curr] in alpha:
-				chain += c2eDict[curr]
-				curr = c2eDict[curr]
-				alpha = alpha.replace(curr,"")
-			else:
+	for key in e2cDict:
+		# Pass on characters we've already done	
+		if key in uChars:
+			continue
+		failed = False
+		tstr = key
+		uChars.add(tstr[-1])
+
+		while tstr[-1] in e2cDict:
+			tstr += e2cDict[tstr[-1]]
+			uChars.add(tstr[-1])
+			if len(tstr) >26:
+				failed = True
 				break
 
-		curr = chain[0]
-		while True:
-			if curr in e2cDict and e2cDict[curr] in alpha:
-				chain += e2cDict[curr]
-				curr = e2cDict[curr]
-				alpha = alpha.replace(curr,"")
-			else:
+		# Search in the opposite direction:
+		while tstr[0] in c2eDict:
+			tstr = c2eDict[tstr[0]] + tstr
+			uChars.add(tstr[0])
+			if len(tstr) >26:
+				failed = True
 				break
-
-		if len(chain) > 1:
-			chains.append(chain)
+	
+		if not failed:
+			chains.append(tstr)
 
 	return chains
 
@@ -221,7 +225,7 @@ def getSetting(fullStr,clrStrings,encStrings,tree):
 			else:
 				rotatedStrs[i] = rotatedStrs[i] + " "
 
-	j# Fill in the spaces with info from the full string
+	# Fill in the spaces with info from the full string
 	for i in range(0,len(dicts)):
 		found = False
 		for j in range(0,25):

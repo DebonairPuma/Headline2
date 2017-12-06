@@ -39,11 +39,8 @@ Once the 26 long string is found, we'll attempt to extract the setting, key, and
    	are in the folder and end with pats.p or tree.p
 5. 	Create an interface for finding word lists and selecting them.  User should be able to pick and choose
 
-6. 	Work on turning partial solves and indeterminate lines into complete solves
-7. 	What if we can't get 2 reasonable solves using setSolve?
-8. 	Test the best threshold for singlesettrim
-9. 	Test to see if it's worth always running singleSetTrim before the thorough version, alternatively
-   	find a good way to determine how long it'll take, this could be a significant speedup
+6. 	Work on turning near complete solves into full solves, even if this means querying
+	the user
 10. Implement the single chain solver as a a stepping stone on the way to getting
     two complete solves.
 11. Prepare handoff between single line solvers and geometric solvers.
@@ -269,19 +266,16 @@ class HEADLINE(object):
 	def generatepDict(self):
 		# Converts the current sDict into a pDict
 		self.pDict = {}
-		#print("generating pdict")
-		#print(self.sDict)
 		for key in self.sDict:
 			try:
 				items = list(self.sDict[key])
 				if len(items) == 1:
 					self.pDict[key] = items[0]
 				else:
-					self.pDict[key] = '_'
+					pass
 			except TypeError:
-				self.pDict[key] = '_'
-		#print(self.pDict)
-		#print("done")
+				pass
+
 
 	def getStatus(self):
 		# Evaluates sDict, if all entries map to exactly one letter, then 
@@ -325,6 +319,8 @@ class HEADLINE(object):
 		# Word stats-> numCharacters, numSharedCharacters, numMatches, 
 		# First challenge, eliminate any words that share no characters with other words
 		
+		# TODO: Cleanup!
+
 		maxListLen = 10000
 
 		#print(encStr)
@@ -472,7 +468,6 @@ def SOLVER(encStrs,patDict,tree):
 	
 
 	# Determine which pair of chains produces the largest set
-
 	indexes = [x.index for x in goodLines]
 
 	combos = []
@@ -485,18 +480,48 @@ def SOLVER(encStrs,patDict,tree):
 			# Sort by largest set:
 			res = sorted(res,key=lambda s: s[1])[::-1]
 
-			# Store as: ((indexA,indexB),size,seed)
-			
+			# Store as: ((indexA,indexB),size,seed)		
 			combos.append(((curr,index),res[0][1],res[0][0][0]))
 	
 	combos = sorted(combos,key=lambda s: s[1])[::-1]
-	print(combos)
+
+	# Use that set to create a grid:
+	tg = GRID(headlines[combos[0][0][0]].chains,
+			  headlines[combos[0][0][1]].chains,
+			  combos[0][2],
+			  26,
+			  13)
+	tg.printGrid()
+
+	print("extracting chains")
+	print(tg.extractChains())
+	inUse = set([combos[0][0][0],combos[0][0][1]])
+
+	# If additional chains are available, attempt to improve grid
+	# otherwise try running grid solve on bad headlines
+
+
+	# Try the set solver on all headlines that aren't in use:
+	for curr in headlines:
+		if curr.index not in inUse:
+			ret = tg.autoSearch(curr.encWords,curr.uChars,tree)
+			print("####################################")
+			for sol in ret[1]:
+				printPartial(sol,curr.encStr,True)
+				print()
+			print()
+
+
+
+	#TODO: May need a method for validating grids
+	#headlines[combos[0][0][0]].checkSol()
+	#headlines[combos[0][0][1]].checkSol()
+	#print("pDict",headlines[combos[0][0][0]].pDict)
+
+
+
+
 	return True
-
-	# Determine which grid is best:
-	#tg = GRID(26,chains[0],chains[1],13,None)
-	#tg.printGrid()
-
 
 	#for i in range(0,len(encStrs)):
 	#	print("Line: ",i)
@@ -615,12 +640,7 @@ def main():
 		H = HEADLINE(diffEncStrs[i],patDict,None)
 		H.omitWords(diffClrStrs[i],patDict)
 	'''
-	print(largestSets(['ARTOKNLPS', 'BD', 'CZ', 'EM', 'FQIUWY', 'HX'],['ANLPSGMEVRTO', 'BD', 'HZ', 'IUW', 'JY']))
 
-	
-
-
-	
 	# Full tests:
 	passed = 0
 	failed = 0
@@ -631,6 +651,11 @@ def main():
 		ans = SOLVER(test.encStrs,patDict,tree)
 		stop = time.time()
 		print("Finished in: ", stop-start)
+		
+		#for i in range(0,len(test.encStrs)):
+		#	print(test.encStrs[i])
+		#	print(test.clrStrs[i],"\n")
+		#exit()
 		if ans:
 			passed+=1
 		else:

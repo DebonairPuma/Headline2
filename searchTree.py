@@ -127,6 +127,39 @@ def searchWild(word,curr):
 
 	return matches
 
+def searchWildTF(word,curr):
+	# Recursive search function, searches all children for the first character in word
+	# Same as previous version, but only runs till it finds a valid word, then returns 
+	# True or False
+	matches = []
+	for i in range(0,len(word)):
+		# Search normally for word until wildcard character is encountered
+		found = False
+
+		if word[i] != '_':
+			for child in curr.children:
+				if child.char == word[i]:
+					curr = child
+					found = True
+					break
+		
+		else:
+			# Encountered wildcard, branch off on all children		
+			for child in curr.children:
+				ret = searchWildTF(word[i+1:],child)
+				# Append any matches to list
+				if ret:
+					return True
+
+		if found == False:
+			# Couldn't find character, return matches (if any)
+			return False
+	
+	if curr.isEnd:
+		return True
+
+	return matches
+
 def climbUp(curr):
 	# Assembles a word by climbing up from whatever node is passed in
 	# Returns the full string

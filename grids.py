@@ -1,4 +1,5 @@
 from setupFunctions import updatePartial
+from searchTree import searchWildTF
 
 class cell(object):
 	def __init__(self):
@@ -12,7 +13,7 @@ class cell(object):
 		self.done = True
 
 class GRID(object):
-	def __init__(self,size,vChain,hChain,seedPos,seed):
+	def __init__(self,vChain,hChain,seed,size,seedPos):
 		# If no seed specifided we're running in manual mode and should pick one
 
 		if seed == None:
@@ -69,6 +70,7 @@ class GRID(object):
 				for y in range(0,self.size):
 					# cell has character, but neighbors haven't been filled
 					self.tryFill(x,y)
+			#self.printGrid()
 
 	def tryFill(self,x,y):
 		if (self.grid[x][y].hasChar == True) and (self.grid[x][y].done == False):
@@ -168,76 +170,146 @@ class GRID(object):
 		else:
 			return longX
 
-	def autoSearch(self,encHeadline,tree):
-		# TODO: Refine this process.  Need to dramatically improve the filtering of bogus strings and remove user interaction
-		#		If nothing else, eliminate the need for user to select initial char
-		# same as offset dict, but automatically searches the grid for every possible pair
+	def extractChains(self):
+		# Returns a list of the longest chains in the X & Y directions
+		hDict = {}
+		for y in range(0,self.size):
+			for x in range(0,self.size):
+				if self.grid[x][y].char != None:
+					if self.grid[x][y].char not in hDict:
+						try:
+							if self.grid[x+1][y].char != None:
+								hDict[self.grid[x][y].char] = self.grid[x+1][y].char
+						except:
+							pass
 
-		# TODO: Reorder this in terms of most likely to be used chars:
+		vDict = {}
+		for x in range(0,self.size):
+			for y in range(0,self.size):
+				if self.grid[x][y].char != None:
+					if self.grid[x][y].char not in vDict:
+						try:
+							if self.grid[x][y+1].char != None:
+								vDict[self.grid[x][y].char] = self.grid[x][y+1].char
+						except:
+							pass
+
+		hrDict = {}
+		for key in hDict:
+			hrDict[hDict[key]] = key
+
+		vrDict = {}
+		for key in vDict:
+			vrDict[vDict[key]] = key
+
+		huChars = set()
+		vuChars = set()
+		hChains = []
+		vChains = []
+		for key in hDict:
+			# Pass on characters we've already done	
+			if key in huChars:
+				continue
+			failed = False
+			tstr = key
+			huChars.add(tstr[-1])
+
+			while tstr[-1] in hDict and hDict[tstr[-1]] not in tstr:
+				tstr += hDict[tstr[-1]]
+				huChars.add(tstr[-1])
+				if len(tstr) >26:
+					failed = True
+					break
+
+			# Search in the opposite direction:
+			while tstr[0] in hrDict and hrDict[tstr[-1]] not in tstr:
+				tstr = hrDict[tstr[0]] + tstr
+				huChars.add(tstr[0])
+				if len(tstr) >26:
+					failed = True
+					break
+		
+			if not failed:
+				hChains.append(tstr)
+
+		for key in vDict:
+			# Pass on characters we've already done	
+			if key in vuChars:
+				continue
+			failed = False
+			tstr = key
+			vuChars.add(tstr[-1])
+
+			while tstr[-1] in vDict and vDict[tstr[-1]] not in tstr:
+				tstr += vDict[tstr[-1]]
+				vuChars.add(tstr[-1])
+				if len(tstr) >26:
+					break
+
+			# Search in the opposite direction:
+			while tstr[0] in vrDict and vrDict[tstr[-1]] not in tstr:
+				tstr = vrDict[tstr[0]] + tstr
+				vuChars.add(tstr[0])
+				if len(tstr) >26:
+					break
+		
+			if not failed:
+				vChains.append(tstr)
+
+		return(hChains,vChains)
+
+
+	def autoSearch(self,words,uChars,tree):
+		# Attempts to solve a headline using the grid
+		# Words is a list of encoded words
+		# uChars is the list of unique characters from those words
+		# tree is the search tree
+		
 		alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-		# if more than half the words are invalid reject it
-		encWords = encHeadline.split(" ")
-		TOLERANCE = len(encWords)/2
+		
+		# How many invalid words a line can have before being rejected
+		TOLERANCE = 1
 
-		pairs = []
-		strs = []
+		pairs = []	# Pairs of letters that worked
+		dicts = []	# The dictionaries for those
 
-		sel = str(input("Select encoded letter to try:\n")).upper()
+		# Grab an arbitrary character
+		# TODO: Is this OK?
+		tar = words[0][0]
+
 		for clr in alpha:
-			(offX,offY) = self.autoFindOffset(sel,clr)
+			(offX,offY) = self.autoFindOffset(tar,clr)
 			if offX == 0 and offY == 0:
 				# Didn't find a match, move on
 				continue
 
-			# Assemble tencoded string with offset
-			clrStr = ""
+			# Create a pDict using that offset:
 			pDict = {}
-			for key in encHeadline:
-				if key == " ":
-					clrStr = clrStr + " "
-				elif key in pDict:
-					clrSTr = clrStr +pDict[key]
+			for char in uChars:
+				val = self.searchGrid(char,offX,offY)
+				if val == None:
+					pDict[char] = '_'
 				else:
-					newVal = self.searchGrid(key,offX,offY)
-					if newVal != None:
-						pDict[key] = newValclrStr = clrStr+pDict[key]
-					else:
-						clrStr = clrStr +"_"
+					pDict[char] = val
 
-			# Split encoded string up into searchable words
+			# Decode each encoded word using pDict and search for it in tree
 			invalid = 0
-			clrWords = clrStr.split(" ")
 
-			# TODO: Make this work with wildcards
-			for word in clrWords:
-				# if word is complete, no underscores
-				if word.find('_') == -1:
-					if findWord(tree,word) == False:
-						invalid += 1
-					if invalid >= TOLERANCE:
-						break
+			for word in words:
+				tclr = ""
+				for char in word:
+					tclr += pDict[char]
 
-				if invalid < TOLERANCE:
-					pairs.append((sel,clr))
-					strs.append(clrStr)
+				# Seach the tree
+				# TODO: Using wildcard search may not be worth it here:
+				if searchWildTF(tclr,tree) == False:
+					invalid += 1
 
-			for i in range(0,len(pairs)):
-				print(i,":", pairs[i][0],"->",pairs[i][1],"\at",strs[i])
+			if invalid < TOLERANCE:
+				pairs.append((tar,clr))	
+				dicts.append(pDict)			
 
-			try:
-				if len(pairs) != 0:
-					sel = int(str(raw_input("Select Match to return or Q to quit without saving\n")))
-					pDict = {}
-					clrWrds = strs[sel].split(" ")
-					for i in range(0,len(encWords)):
-						pDict = updatePartial(encWords[i],clrWrds[i],pDict)
-					return pDict
-				else:
-					# TODO: Has this ever happened??
-					print("No valid strings found")
-					return None
-			except:
-				return None
+		return (pairs,dicts)
 				
 	def autoFindOffset(self,enc,clr):
 		# Finds enc and clr, then returns the X & Y offsets
@@ -265,5 +337,17 @@ class GRID(object):
 									done = True
 									break
 
-		print("No match found!\n")
+		#print("No match found!\n")
 		return(0,0)
+
+	def searchGrid(self,char,offX,offY):
+		# returns the character located at that offset
+		val = None
+		for x in range(0,self.size):
+			for y in range(0,self.size):
+				if (self.grid[x][y].char == char):
+					try:
+						val = self.grid[x+offX][y+offY].char
+						return val
+					except:
+						pass
