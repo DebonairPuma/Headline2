@@ -198,7 +198,7 @@ def SOLVER(encStrs,patDict,tree):
 	#if len(goodLines) < 2:
 		# Try running omitWords on remaining lines:		
 	for headline in badLines:
-		headline.omitWords(None)
+		headline.omitWords(None,True)
 		if headline.partial == True:
 			goodLines.append(headline)
 

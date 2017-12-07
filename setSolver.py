@@ -24,7 +24,6 @@ def setSolve(encStr,patDict):
 	# returns sDcit from the most recent run
 	return val[1]
 
-# TODO: Change the format of the return here. an sDict is probably better
 def setSolve_slim(words,matches):
 	# Simplified setSolve, returns matches rather than sets
 	val = getSets(words,matches)
@@ -38,7 +37,7 @@ def setSolve_slim(words,matches):
 		matches = ret[0]
 		count = ret[1]	
 
-	return matches
+	return val[1]
 
 def getSets(encWords,matches):
 	# Given a set of encoded words and their possible matches, gets sets of possible characters

@@ -1,7 +1,9 @@
+import time
+from copy import *
 from setSolver import *
 from sigSolver import *
 from setupFunctions import *
-
+from grids import cell, GRID
 
 class HEADLINE(object):
 	# An object for storing an encoded headline and some relevant data about it
@@ -53,22 +55,17 @@ class HEADLINE(object):
 		if self.failed ==False and self.solved == False:
 			# If failed, implies we have an unknown word
 			# If not solved, implies sigSolve may yet be effective
-			words = self.encStr.split(' ')
-			while "" in words:
-				words.remove("")
-
-			self.sDict = self.sigSolve(words, self.patDict)
+			self.sDict = self.sigSolve(self.encWords, self.patDict)
 			self.getStatus()
 
 		# Create a partial Dictionary:
 		self.generatepDict()
 
-	def omitWords(self,clrStr):
+	def omitWords(self,clrStr,sFlag):
 		# Try using sigSolver but omit a single word at a time until success:
 		# This is a painfully simple, yet semi effective method for 
 		# handling words that aren't in the dictionary
-		# TODO: add a flag to specify which version of 
-		# omit words we want to run sigSolve, or setSolve.
+		# sFlag specifies which solver to use, False = sigSolve, True = setSolve 
 		
 
 		# TODO: This can generate more than one solution.  We need to detect when that
@@ -88,8 +85,12 @@ class HEADLINE(object):
 				wcopy = list(words)
 				del wcopy[i]
 				
-				self.sDict = self.sigSolve(wcopy,self.patDict)
-				#self.sDict = self.sigSolve(wcopy,self.patDict)
+				if sFlag == False:
+					self.sDict = self.sigSolve(wcopy,self.patDict)
+				else:
+					tmpMatches = copy(self.allMatches)
+					del tmpMatches[i]
+					self.sDict = setSolve_slim(wcopy,tmpMatches)
 				
 
 				self.failed = False
@@ -181,7 +182,10 @@ class HEADLINE(object):
 
 		# Try an initial shakedown process, basically just running setSovle:
 		# this is straight from setSolve
-		matches = setSolve_slim(words,matches)
+		tsDict  = setSolve_slim(words,matches)
+		ret = setTrim(words,tsDict,matches)
+		matches = ret[0]
+
 
 		# TODO: improve this ranking process.  Speed is probably more important than
 		# 		precision here, so simple is better
@@ -199,9 +203,7 @@ class HEADLINE(object):
 
 			stats.append((i,shared))
 
-		#print(stats)
 		stats = sorted(stats,key=lambda s: s[1])[::-1]
-		#print("post sort: ",stats[::-1])
 
 		# Remove any words that are unlikely to be useful:
 		fstats = []
@@ -213,34 +215,33 @@ class HEADLINE(object):
 						fstats.append(stat)
 
 
-		#print("trimming\n")
 		# After every iteration, try running getSets again:
 		for i in range(0,len(fstats)):
-			#print("trying:", words[stats[i][0]])
 			if len(matches[fstats[i][0]]) > maxListLen:
 				# skip any that will take too long
 				continue
-			#matchList = singleSetTrim_thorough(words,matches,fstats[i][0],1)
+
 			ss = SIGSOLVER(words,matches)
-			matchList = ss.sigTrim(fstats[i][0])
-				
+			matchList = ss.sigTrim(fstats[i][0])			
 			matches[fstats[i][0]] = matchList
-			matches = setSolve_slim(words,matches)
+			tsDict  = setSolve_slim(words,matches)
+			ret = setTrim(words,tsDict,matches)
+			matches = ret[0]
 
 
-		# Try a second pass- eventually want to replace this with a loop
+		# TODO: Try a second pass- eventually want to replace this with a loop
 		for i in range(0,len(fstats)):
 			#print("trying:", words[stats[i][0]])
 			if len(matches[fstats[i][0]]) > maxListLen:
 				# skip any that will take too long
 				continue
-			#matchList = singleSetTrim_thorough(words,matches,fstats[i][0],1)
-			#matchList = singleSetTrim(words,matches,fstats[i][0],1)
+
 			ss = SIGSOLVER(words,matches)
 			matchList = ss.sigTrim(fstats[i][0])
-
 			matches[fstats[i][0]] = matchList
-			matches = setSolve_slim(words,matches)
+			tsDict  = setSolve_slim(words,matches)
+			ret = setTrim(words,tsDict,matches)
+			matches = ret[0]
 
 		val = getSets(words,matches)
 		return val[1]
@@ -260,7 +261,58 @@ class HEADLINE(object):
 		# TODO: This should also check to see if we have a complete solution...
 		# 		could be used to validate everything at the end
 
-		if omit == False:
+		
+		# This should check the current status, if it is FAILED, then apply the omit 
+		# words approach
+		if self.failed:
+			# Try omitting words
+			# Get a fresh setDict with the knowns from tpDict:
+			tsDict = {}
+			for key in tpDict:
+				if tpDict[key] != '_':
+					tsDict[key] = set(tpDict[key])
+				else:
+					# Don't know, make it general:
+					tsDict[key] = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+			# Loop through omitting one at a time:
+			words = self.encStr.split(' ')
+			while "" in words:
+				words.remove("")			
+
+			potentialSolves = 0
+			for i in range(0,len(words)):
+				# Ignore any words that are length 1 or 2:
+				if len(words[i]) > 2:
+					wcopy = list(words)
+					del wcopy[i]
+
+					tmatches = copy(self.allMatches)
+					del tmatches[i]
+
+					tmpTSdict = deepcopy(tsDict)
+					ret = setTrim(wcopy,tmpTSdict,tmatches)
+
+					self.sDict = setSolve_slim(wcopy,tMatches)
+					self.getStatus()
+
+					if self.failed == False:
+						potentialSolves +=1
+						pDict = {}
+						for key in sDict:
+							try:
+								items = list(tmpTSdict[key])
+								if len(items) == 1:
+									pDict[key] = items[0]
+								else:
+									pass
+							except TypeError:
+								pass
+			# TODO: Make sure this stuff doesn't blow up ^^
+
+
+		else:
+			# Was incomplete, don't omit words:
 			# Get a fresh setDict with the knowns from tpDict:
 			tsDict = {}
 			for key in tpDict:
@@ -303,8 +355,148 @@ class HEADLINE(object):
 					pass	
 			printPartial(pDict,self.encStr,True)
 
-			
+		# Compare pDict to the one before this call, update if this one is better
 
+class SOILVER(object):
+	def __init__(self,encStrs,patDict,tree):
+		start = time.time()
+		self.headlines = []
+		self.encStrs   = encStrs
+		self.patDict   = patDict
+		self.tree      = tree
+		self.state     = 0
+		self.gridSetSize = 0
+
+		# First, initialize all of the headlines
+		for i in range(0,len(encStrs)):
+			self.headlines.append(HEADLINE(encStrs[i],patDict,None,i))
+		stop = time.time()
+		print("Finished initialization in: ", stop-start)
+
+		self.main_loop()
+
+	def main_loop(self):
+		while True:
+			self.generateChains()
+
+			if self.gridSetSize == 26:
+				done = True
+				for headline in self.headlines:
+					if headline.solved == False:
+						done = False
+						break
+
+				if done == True:
+					# We've got the longest string and all lines are solved
+					break
+
+		self.getSetting()
+		return True
+
+	def generateChains(self):
+		self.state  += 1
+		self.indexes = []
+		self.chains  = []
+		for headline in self.headlines:
+			headline.getChains()
+			if len(headline.chains)<2:
+				pass
+			else:
+				self.indexes.append(headline.index)
+				self.chains.append(headline.chains)
+
+		self.startGrid()
+
+	def startGrid(self):
+		# Determine which lines have chains:
+		tmp    = copy(self.indexes)
+		combos = []
+		while len(tmp) > 1:
+			curr = tmp.pop()
+			for index in tmp:
+				res = largestSets(self.headlines[curr].chains,
+							      self.headlines[index].chains)
+
+				if len(res) == 0:
+					continue
+				
+				# Sort by largest set:
+				res = sorted(res,key=lambda s: s[1])[::-1]
+				# Store as: ((indexA,indexB),size,seed)		
+				combos.append(((curr,index),res[0][1],res[0][0][0]))
+
+		if len(combos) == 0:
+			# Cannot make grid, return to single solver techniques
+			self.solveSingles()
+
+		# Can now build a grid and attempt to improve it:
+		combos = sorted(combos,key=lambda s: s[1])[::-1]
+
+		self.grid = GRID(self.headlines[combos[0][0][0]].chains,
+			  			 self.headlines[combos[0][0][1]].chains,
+			  			 combos[0][2],
+			  			 26,
+			  			 13)
+
+		self.gridSetSize = combos[0][1]
+
+		# Mark the lines that are currently being used in the grid
+		self.inUse = set([combos[0][0][0],combos[0][0][1]])
+		self.improveGrid()
+
+	def improveGrid(self):
+		# Try to build a better set using the existing grid:
+		bestChains = self.grid.extractChains()
+		hChains = bestChains[0]
+		vChains = bestChains[1]
+
+		combos = []
+		for headline in self.headlines:
+			if headline.index not in self.inUse:
+				res = largestSets(headline.chains,hChains)
+				if len(res) != 0:
+					res = sorted(res,key=lambda s: s[1])[::-1]
+					combos.append(((headline.index,0),res[0][1],res[0][0][0]))
+
+				res = largestSets(headline.chains,vChains)
+				if len(res) != 0:
+					res = sorted(res,key=lambda s: s[1])[::-1]
+					combos.append(((headline.index,1),res[0][1],res[0][0][0]))
+
+		if len(combos) == 0:
+			# Grid is as good as it's going to get.  Try using it!
+			self.gridSolve()
+			
+		combos = sorted(combos,key=lambda s: s[1])[::-1]
+
+		# See if the best combo is better than existing graph:
+		if combos[0][1] > self.gridSetSize:
+			self.grid = GRID(self.headlines[combos[0][0][0]].chains,
+					  		 bestChains[combos[0][0][1]],
+					  		 combos[0][2],
+					  		 26,
+					  		 13)
+
+			self.gridSetSize = combos[0][1]
+			self.inUse.add(combos[0][0][0])
+			self.improveGrid()
+		
 		else:
-			pass
+			# Grid is as good as it's going to get.  Try using it!
+			self.gridSolve()
+
+	def gridSolve(self):
+
+		for curr in self.headlines:
+			ret = self.grid.autoSearch(curr.encWords,curr.uChars,self.tree)
+			for sol in ret[1]:
+				curr.tryDict(sol,False)
+
+
+	def solveSingles(self):
+		pass
+
+	def getSetting(self):
+		print("CONGRATULATIONS! -- This hasn't been added yet")
+
 
