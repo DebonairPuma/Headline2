@@ -155,11 +155,13 @@ encStrs = ["DMXWPMKH NGQCB CPLK DYBF ULKHGRGLKMP LF RL ELXC TWACXPLLA RYKKCP",
 		   "ST OHSKWASIDK EIWDS NQH MEHHWBLIS HSJWSN",
 		   "ZUAAUF EPWFTE WMCUDX FPXU PF XRU UYPFPHZ",
 		   "PMF RKEEODDOKPTW TPRKXWBLTD YTBED YK WTDKFIT YUTOW SWKYTDY ODDXTD"]
+'''
 encStrs = [	"LMWQLX NRQSKV QY SKXMLINVML ZLNHHMH LMEQLVMX OK JNG",
 			"DXGUX NHQHAQ CHIHAYWP VYQX GXYW RCM",
 			"UEA ITKZ JPZVPZZTZ E FTPYYS PRZ ZRWF",
 			"UCF CMJCZMJCU RH GOSFQX HMGXU GRDQN O HMXU VDYV",
 			"HPQFRC BRFFSRB OQFJ EQIERC TGG MKBBRPDRU"] #UNITED SETTLES WITH KICKED-OFF PASSENGER 
+'''
 
 # US DEC 17
 encStrs = [	"QBOKHP YCSWDWNRDEJ JDO SHTDWR SHJX FHCX EBN",
@@ -167,174 +169,6 @@ encStrs = [	"QBOKHP YCSWDWNRDEJ JDO SHTDWR SHJX FHCX EBN",
 			"LWSICNIC VAMGIC WCMBLI YR WE ERMXZ QTQCFL",
 			"QHYIC KQCBQ M L LWSRRAL ZIY BXHAMO RH DMICYR CBWQX LYMFIXYL",
 			"WJCJQIE FQISC OGQAQY PS C U YJJN PSUQJIYJ PS CIPEV RIV"] 
-
-
-
-def SOLVER(encStrs,patDict,tree):
-	# This is the main function for solving the puzzle for each month.  Keeps
-	# everything organized and makes calls to working functions.
-	headlines = []
-	start = time.time()
-	# First, initialize all of the headlines
-	for i in range(0,len(encStrs)):
-		headlines.append(HEADLINE(encStrs[i],patDict,None,i))
-	stop = time.time()
-	print("Finished initialization in: ", stop-start)
-
-	# Check statuses for each line, add full or partial solves to one list
-	# and failed/incomplete to another
-	goodLines = []
-	badLines  = []
-	for headline in headlines:
-		if headline.solved == True or headline.partial == True:
-			goodLines.append(headline)
-		else:
-			badLines.append(headline)
-
-
-	# Go ahead and try this on all lines, it's probably worth while
-	# TODO: Experiment with this threshold, is it faster to go straight to 
-	# 		grids?
-	#if len(goodLines) < 2:
-		# Try running omitWords on remaining lines:		
-	for headline in badLines:
-		headline.omitWords(None,True)
-		if headline.partial == True:
-			goodLines.append(headline)
-
-	# Assuming omitLines got us up over that threshold, start getting chains
-	print("Found: ",len(goodLines),"partial solutions.  Generating grids\n")
-
-	# Get a list of all the chains we have available, and create the best possible
-	# grid based on them.  Then apply that grid to everything in badLines
-	chains = []
-	for headline in goodLines:
-		headline.getChains()
-		if len(headline.chains) < 2:
-			pass
-		else:
-			#headline.checkSol()
-			#print(headline.chains)
-			chains.append(headline.chains)
-
-	if len(chains)< 2:
-		# In the future, this should dump us into manual solving mode
-		print("ABORTING! couldn't get enough partial solutions to generate a graph!")
-		return False
-	
-
-	# Determine which pair of chains produces the largest set
-	indexes = [x.index for x in goodLines]
-
-	combos = []
-	while len(indexes) > 1:
-		curr = indexes.pop()
-		for index in indexes:
-			res = largestSets(headlines[curr].chains,headlines[index].chains)
-			if len(res) == 0:
-				continue
-			# Sort by largest set:
-			res = sorted(res,key=lambda s: s[1])[::-1]
-
-			# Store as: ((indexA,indexB),size,seed)		
-			combos.append(((curr,index),res[0][1],res[0][0][0]))
-	
-	combos = sorted(combos,key=lambda s: s[1])[::-1]
-
-	# Use that set to create a grid:
-	tg = GRID(headlines[combos[0][0][0]].chains,
-			  headlines[combos[0][0][1]].chains,
-			  combos[0][2],
-			  26,
-			  13)
-	#tg.printGrid()
-
-	print("extracting chains")
-	bestChains = tg.extractChains()
-	hChains = bestChains[0]
-	vChains = bestChains[1]
-	inUse = set([combos[0][0][0],combos[0][0][1]])
-
-	# Get the best existing set size:
-	bestSet = combos[0][1]
-
-
-
-	# Try to build a better set using the other grids:
-	combos = []
-	for headline in headlines:
-		if headline.index not in inUse:
-			headline.getChains()
-			res = largestSets(headline.chains,hChains)
-			if len(res) != 0:
-				res = sorted(res,key=lambda s: s[1])[::-1]
-				combos.append(((headline.index,0),res[0][1],res[0][0][0]))
-
-			res = largestSets(headline.chains,vChains)
-			if len(res) != 0:
-				res = sorted(res,key=lambda s: s[1])[::-1]
-				combos.append(((headline.index,1),res[0][1],res[0][0][0]))
-
-	combos = sorted(combos,key=lambda s: s[1])[::-1]
-
-	print("************************************************")
-	print("BEFORE UPDATE")
-	for curr in headlines:
-		if curr.index not in inUse:
-			ret = tg.autoSearch(curr.encWords,curr.uChars,tree)
-			print("####################################")
-			for sol in ret[1]:
-				printPartial(sol,curr.encStr,True)
-				print()
-			print()
-
-
-	if len(combos)>0:
-		if combos[0][1] > bestSet:
-			tg = GRID(headlines[combos[0][0][0]].chains,
-					  bestChains[combos[0][0][1]],
-					  combos[0][2],
-					  26,
-					  13)
-			inUse.add(combos[0][0][0])
-			print("New and improved grid:")
-			print("inUse:",inUse)
-			#tg.printGrid()
-
-			print("************************************************")
-			print("AFTER UPDATE")
-			# Try the set solver on all headlines that aren't in use:
-			for curr in headlines:
-				#if curr.index not in inUse:
-				ret = tg.autoSearch(curr.encWords,curr.uChars,tree)
-				print("####################################")
-				for sol in ret[1]:
-					print("\t trying tryDict")
-					curr.tryDict(sol,False)
-					#printPartial(sol,curr.encStr,True)
-					
-				print()
-
-		else:
-			print("Couldn't improve grid!")
-			for curr in headlines:
-				#if curr.index not in inUse:
-				ret = tg.autoSearch(curr.encWords,curr.uChars,tree)
-				print("####################################")
-				for sol in ret[1]:
-					print("\t trying tryDict")
-					curr.tryDict(sol,False)
-					#printPartial(sol,curr.encStr,True)
-					
-				print()
-
-	else:
-		print("No additional chains available")
-
-	# If additional chains are available, attempt to improve grid
-	# otherwise try running grid solve on bad headlines
-
-	return True
 
 def main():
 	# Check for input arguments
@@ -369,6 +203,10 @@ def main():
 	# Load up the test files
 	tests = getTestFiles("testFiles.txt")
 
+	# Try solving the latest problem:
+	SOLVER(encStrs,patDict,tree)
+
+	
 	# Full tests:
 	passed = 0
 	failed = 0
@@ -387,6 +225,7 @@ def main():
 
 	print("passed:",passed,"failed:",failed)
 	
+
 if __name__ == '__main__':
 	main()
 

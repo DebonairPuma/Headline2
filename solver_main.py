@@ -47,19 +47,22 @@ class HEADLINE(object):
 		self.sDict = setSolve(self.encStr,self.patDict)
 
 		# Evaluate sDict and set status accordingly
-		self.getStatus()
+		self.getStatus(None)
 
-
+		'''
+		# Moved this step to a new function
 		# TODO: Evaluate how often this is actually helpful, in most we can probably
 		# 		skip this step until everything has been initialized.
 		if self.failed ==False and self.solved == False:
 			# If failed, implies we have an unknown word
 			# If not solved, implies sigSolve may yet be effective
 			self.sDict = self.sigSolve(self.encWords, self.patDict)
-			self.getStatus()
+			self.getStatus(None)
+		'''
 
 		# Create a partial Dictionary:
-		self.generatepDict()
+		self.generatepDict(None)
+
 
 	def omitWords(self,clrStr,sFlag):
 		# Try using sigSolver but omit a single word at a time until success:
@@ -86,7 +89,7 @@ class HEADLINE(object):
 				del wcopy[i]
 				
 				if sFlag == False:
-					self.sDict = self.sigSolve(wcopy,self.patDict)
+					self.sDict = self.sigSolve(wcopy)
 				else:
 					tmpMatches = copy(self.allMatches)
 					del tmpMatches[i]
@@ -94,14 +97,15 @@ class HEADLINE(object):
 				
 
 				self.failed = False
-				self.getStatus()
+				self.getStatus(None)
 
 				# TODO: Identify incomplete solves
 				if self.failed == False:
 					# For now, just keep track of total solutions, and call
 					# it a failure if more than one appears
 					potentialSolves +=1
-					self.generatepDict()
+					# TODO: Compare the generated pDict to the current one?
+					self.generatepDict(None)
 					#print("Omitted: ",words[i])
 					#printPartial(self.pDict,self.encStr,True)
 					#if clrStr != None:
@@ -112,25 +116,39 @@ class HEADLINE(object):
 			self.failed = True
 			self.partial = False
 
-	def generatepDict(self):
+	def generatepDict(self,dictIn):
 		# Converts the current sDict into a pDict
-		self.pDict = {}
+		if dictIn == None:
+			dictC = self.sDict
+		else:
+			dictC = dictIn
+	
+		curr = {}
 		for key in self.sDict:
 			try:
-				items = list(self.sDict[key])
+				items = list(dictC[key])
 				if len(items) == 1:
-					self.pDict[key] = items[0]
+					curr[key] = items[0]
 				else:
 					pass
-			except TypeError:
+			except:
+				print("Got exception in generatepDict...")
 				pass
 
-	def getStatus(self):
+		if dictIn == None:
+			self.pDict = curr
+
+		return curr
+
+	def getStatus(self,sDictIn):
 		# Evaluates sDict, if all entries map to exactly one letter, then 
 		# Solved is set to True
 		# If one or more sets has exactly one entry then partialSolved
 		# If one or more sets has zero, then failed
 		
+		if sDictIn == None:
+			sDictIn = self.sDict
+
 		# Number of unique characters in string
 		uChars = len(self.sDict.keys())
 
@@ -140,10 +158,10 @@ class HEADLINE(object):
 		if self.sDict == None:
 			return
 
-		for key in self.sDict:
-			if len(self.sDict[key]) == 0:
+		for key in sDictIn:
+			if len(sDictIn[key]) == 0:
 				self.numFailed += 1
-			elif len(self.sDict[key]) == 1:
+			elif len(sDictIn[key]) == 1:
 				self.numSolved += 1
 
 		# Reset variables:
@@ -161,7 +179,7 @@ class HEADLINE(object):
 		else:
 			self.incomplete = True
 
-	def sigSolve(self,words,patDict):
+	def sigSolve(self,words):
 		# This function will try several methods to determine which words are eligible for
 		# singleSetTrim/singleSetTrim_thorough.
 		# Word stats-> numCharacters, numSharedCharacters, numMatches, 
@@ -177,7 +195,7 @@ class HEADLINE(object):
 
 		matches = []
 		for i in range(0,len(words)):
-			matches.append(getMatches(words[i],patDict))
+			matches.append(getMatches(words[i],self.patDict))
 			#print(words[i],"->",len(matches[i]),"matches")
 
 		# Try an initial shakedown process, basically just running setSovle:
@@ -254,7 +272,7 @@ class HEADLINE(object):
 		# calls printPartial:
 		printPartial(self.pDict,self.encStr,True)
 
-	def tryDict(self,tpDict,omit):
+	def tryDict(self,tpDict):
 		# Takes a partial dictionary, tDict, and attempts to get a solution 
 		# based on that.
 		# Omit is a flag that determines whether we try running omit words.
@@ -280,36 +298,34 @@ class HEADLINE(object):
 			while "" in words:
 				words.remove("")			
 
-			potentialSolves = 0
+			#potentialSolves = 0
 			for i in range(0,len(words)):
 				# Ignore any words that are length 1 or 2:
 				if len(words[i]) > 2:
 					wcopy = list(words)
 					del wcopy[i]
 
-					tmatches = copy(self.allMatches)
+					tmatches = deepcopy(self.allMatches)
 					del tmatches[i]
 
 					tmpTSdict = deepcopy(tsDict)
 					ret = setTrim(wcopy,tmpTSdict,tmatches)
-
-					self.sDict = setSolve_slim(wcopy,tMatches)
-					self.getStatus()
+					tmpTSdict = setSolve_slim(wcopy,ret[0])
+					self.getStatus(tmpTSdict)
 
 					if self.failed == False:
-						potentialSolves +=1
-						pDict = {}
-						for key in sDict:
-							try:
-								items = list(tmpTSdict[key])
-								if len(items) == 1:
-									pDict[key] = items[0]
-								else:
-									pass
-							except TypeError:
-								pass
-			# TODO: Make sure this stuff doesn't blow up ^^
+						#potentialSolves +=1
+						pDict = self.generatepDict(tmpTSdict)
 
+						# Check if this solution isi better than the current one:
+						if len(pDict.keys()) > len(self.pDict.keys()):
+							self.pDict = pDict
+							self.sDict = tmpTSdict
+					else:
+						# Reset status:
+						self.getStatus(None)
+
+			# TODO: Make sure this stuff doesn't blow up ^^
 
 		else:
 			# Was incomplete, don't omit words:
@@ -341,42 +357,42 @@ class HEADLINE(object):
 					# Failed
 					return False
 
-			# if no failures, return the sDict:
-			# This is literally just getpDict() # TODO: Remove this
-			pDict = {}
-			for key in tsDict:
-				try:
-					items = list(tsDict[key])
-					if len(items) == 1:
-						pDict[key] = items[0]
-					else:
-						pass
-				except TypeError:
-					pass	
-			printPartial(pDict,self.encStr,True)
+			# compare pDict to current best:		
+			pDict = self.generatepDict(tsDict)
+			if len(pDict.keys()) > len(self.pDict.keys()):
+				self.pDict = pDict
+				#printPartial(pDict,self.encStr,True)
+				return True
 
-		# Compare pDict to the one before this call, update if this one is better
+			return False
 
-class SOILVER(object):
+class SOLVER(object):
 	def __init__(self,encStrs,patDict,tree):
-		start = time.time()
+		self.start = time.time()
 		self.headlines = []
 		self.encStrs   = encStrs
 		self.patDict   = patDict
 		self.tree      = tree
 		self.state     = 0
 		self.gridSetSize = 0
+		self.manual = False
+		self.grid = None
 
 		# First, initialize all of the headlines
 		for i in range(0,len(encStrs)):
 			self.headlines.append(HEADLINE(encStrs[i],patDict,None,i))
 		stop = time.time()
-		print("Finished initialization in: ", stop-start)
+		print("Finished initialization in: ", stop-self.start)
 
 		self.main_loop()
 
 	def main_loop(self):
 		while True:
+			stop = time.time()
+			print("Current State: ",self.state,"Elapsed Time: ",stop-self.start)
+			if self.manual == True or self.state > 4:
+				break
+
 			self.generateChains()
 
 			if self.gridSetSize == 26:
@@ -389,6 +405,18 @@ class SOILVER(object):
 				if done == True:
 					# We've got the longest string and all lines are solved
 					break
+
+		print("exited loop:")
+		for headline in self.headlines:
+			print("LINE:",headline.index)
+			printPartial(headline.pDict,headline.encStr,True)
+			print()
+
+		if self.grid != None:
+			self.grid.printGrid()
+		if self.manual == True:
+			# For now, this counts as a failure
+			return False
 
 		self.getSetting()
 		return True
@@ -428,6 +456,7 @@ class SOILVER(object):
 		if len(combos) == 0:
 			# Cannot make grid, return to single solver techniques
 			self.solveSingles()
+			return
 
 		# Can now build a grid and attempt to improve it:
 		combos = sorted(combos,key=lambda s: s[1])[::-1]
@@ -466,6 +495,7 @@ class SOILVER(object):
 		if len(combos) == 0:
 			# Grid is as good as it's going to get.  Try using it!
 			self.gridSolve()
+			return
 			
 		combos = sorted(combos,key=lambda s: s[1])[::-1]
 
@@ -490,11 +520,37 @@ class SOILVER(object):
 		for curr in self.headlines:
 			ret = self.grid.autoSearch(curr.encWords,curr.uChars,self.tree)
 			for sol in ret[1]:
-				curr.tryDict(sol,False)
+				curr.tryDict(sol)
 
+		# Done with current iteration, returning to main loop
 
 	def solveSingles(self):
-		pass
+		# Order of operations:
+		#1st & Failed- try set solve omit words on all
+		#1st & incomplete- sig solve on all
+		#2nd & failed- sig solve omit words
+
+		# TODO: Experiment with these, should they be run multiple times?
+
+		for headline in self.headlines:
+			if headline.solved == True:
+				continue
+
+			if self.state == 1:
+				if headline.failed == True:
+					headline.omitWords(None,True)
+				else:
+					headline.sDict = headline.sigSolve(headline.encWords)
+			elif self.state == 2:
+				if headline.failed == True:
+					headline.omitWords(None,False)
+			elif self.state > 3:
+				print("Unable to solve enough single lines, switching to manual.\n")
+				self.manual = True
+				break
+
+		# Done here, returning to main loop
+		return
 
 	def getSetting(self):
 		print("CONGRATULATIONS! -- This hasn't been added yet")
