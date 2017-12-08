@@ -5,6 +5,13 @@ from sigSolver import *
 from setupFunctions import *
 from grids import cell, GRID
 
+# TODO: Rework the way that the partial status is assigned. It's indistinguishable
+# 		from incomplete if we can't produce any chains- so partial should be assigned
+# 		only if chains returns something
+
+# TODO: If omit words succeeds, it should probably mark the word that it omitted
+# 		that information can be used later when checking the solution
+
 class HEADLINE(object):
 	# An object for storing an encoded headline and some relevant data about it
 	# Stats: Number of unique letters
@@ -390,6 +397,12 @@ class SOLVER(object):
 		while True:
 			stop = time.time()
 			print("Current State: ",self.state,"Elapsed Time: ",stop-self.start)
+			print("Status\tSOLVED\tFAILED\tPARTIAL\tINCOMPLETE")
+			for headline in self.headlines:
+				headline.getStatus(None)
+				print(headline.index,"\t",headline.solved,"\t",headline.failed,"\t",headline.partial,"\t",headline.incomplete,"\t")
+			print()
+
 			if self.manual == True or self.state > 4:
 				break
 
@@ -541,14 +554,15 @@ class SOLVER(object):
 					headline.omitWords(None,True)
 				else:
 					headline.sDict = headline.sigSolve(headline.encWords)
-			elif self.state == 2:
+			elif self.state >= 2:
 				if headline.failed == True:
 					headline.omitWords(None,False)
-			elif self.state > 3:
-				print("Unable to solve enough single lines, switching to manual.\n")
-				self.manual = True
-				break
-
+				elif headline.incomplete == True: 
+					headline.sigSolve(headline.encWords)
+		
+		if self.state > 4:
+			print("Unable to solve enough single lines, switching to manual.\n")
+			self.manual = True
 		# Done here, returning to main loop
 		return
 
