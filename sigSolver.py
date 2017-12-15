@@ -280,8 +280,9 @@ def find_valid_signatures(eSchars, sigsIn, sigDicts):
 
 		tSet = set()
 		for key in uSigs[i]:
-			ret = check_intersections(key,sigDicts[i]):
-			if ret != False:
+			pass
+			#ret = check_intersections(key,sigDicts[i]):
+			#if ret != False:
 				
 
 			#if check_intersections(key,sigDicts[i]):

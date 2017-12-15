@@ -144,7 +144,7 @@ def updatePartial(key,val,Dict):
 	return pDict
 
 def printPartial(pDict,line,pFlag):
-	newline = ""
+	newLine = ""
 	for i in range(0,len(line)):
 		if line[i] in pDict:
 			newLine = newLine + pDict[line[i]]
