@@ -145,6 +145,7 @@ from searchTree import *
 from TestingFuncs import *
 from copy import copy
 from solver_main import *
+from sigSolver_recursive import *
 
 ###########################################################
 # CONFIGURATION
@@ -203,6 +204,119 @@ def main():
 	# Load up the test files
 	tests = getTestFiles("testFiles.txt")
 
+	#words = encStrs[4].split(" ")
+
+
+	#sols = SIGSOLVER(words,patDict)
+
+	#for sol in sols.solutions:
+	#	printPartial(sol,encStrs[1],True)
+
+	
+	##################################################################################
+	# This runs a test only on individual headlines:
+	#NZWNTZ TZJQZ EWDR VWPZR JLG OJPATC SW EWAL JLSA NANZTALZ KJPN
+	#PEOPLE LEAVE JOBS HOMES AND FAMILY TO JOIN ANTI PIPELINE CAMP
+	aborts = 0
+	chainable = 0
+	thisMonth = 0
+	passed = 0
+	diffTests = []
+
+	t1 = time.time()
+	for test in tests:
+		thisMonth = 0
+		for i in range(0,len(test.encStrs)):
+			words = test.encStrs[i].split(" ")
+			while " " in words:
+				words.remove(" ")
+			sols = SIGSOLVER(words,patDict)
+
+
+			print("solution")
+
+			for sol in sols.solutions:
+				print(sol)
+				printPartial(sol,test.encStrs[i],True)	
+			print(test.clrStrs[i])
+			exit()	
+			'''
+			curr = HEADLINE(test.encStrs[i],patDict,None,i)
+			while curr.nextState != 'G' and curr.nextState != 'F':
+				curr.nextSolve()
+
+			if curr.aborted == True:
+				#print("NO SOLUTION")
+				#print(test.clrStrs[i])
+				diffTests.append((curr,test.clrStrs[i]))
+				aborts += 1
+			else:
+				#print(test.clrStrs[i])
+				#curr.checkSol()
+				chainable += 1
+				thisMonth += 1
+			print(test.clrStrs[i])
+			curr.checkSol()
+			
+			print('---------------------------------------------------------------\n')
+		if thisMonth > 1:
+			passed+=1
+		print('**********************************************************************')
+			'''
+
+	t2 = time.time()
+	#print("Done- aborts:",aborts,"Chainable:",chainable)
+	#print("Passed months:",passed,"/",len(tests))
+	#print(t2-t1)
+	
+
+	#Done- aborts: 115 Chainable: 55
+	#Passed months: 18 / 34
+	#59.48752975463867
+
+
+	# FOUR loops in sig solve and 10000 max length
+	#Done- aborts: 72 Chainable: 98
+	#Passed months: 28 / 34
+	#100.48544645309448
+
+	# TWO LOOPS IN SIG SOLVE AND 10000 MAX LENGTH
+	#Done- aborts: 72 Chainable: 98
+	#Passed months: 28 / 34
+	#83.09616231918335
+	# ONE LOOP IN SIG SOLVE AND 10000 MAX LENGTH
+	#Done- aborts: 75 Chainable: 95
+	#Passed months: 28 / 34
+	#69.08589386940002
+	# ONE LOOP IN SIG SOLVE AND 100 MAX LENGTH
+	#Done- aborts: 96 Chainable: 74
+	#Passed months: 24 / 34
+	#42.06231451034546
+	# TWO LOOP IN SIG SOLVE AND 100 MAX LENGTH
+	#Done- aborts: 94 Chainable: 76
+	#Passed months: 25 / 34
+	#43.861995220184326
+
+	#LK 81
+	#MVHIZM 178
+	#PCF 1131
+	#WIK 479
+	#BSGK 863
+	#BSWBVKG 124
+	#JVOVJ 23
+	#SZ 93
+	#MVUIMVK 46
+	##############
+	#COULD BE SALVAGABLE
+	#[17, 11, 14, 5, 17, 13, 26, 26, 24, 13, 20, 10, 25, 20, 14, 25, 15]
+	#US DEMAND FOR GAS HITS HIGHEST LEVEL IN DECADES
+	#
+	#LK MVHIZM PCF WIK BSGK BSWBVKG JVOVJ SZ MVUIMVK
+	#
+
+	'''
+	###################################################################################
+	# This is a full test of SOLVER & HEALINE
 	# Try solving the latest problem:
 	SOLVER(encStrs,patDict,tree)
 
@@ -224,7 +338,7 @@ def main():
 			failed+=1
 
 	print("passed:",passed,"failed:",failed)
-	
+	'''
 
 if __name__ == '__main__':
 	main()

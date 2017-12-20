@@ -24,7 +24,14 @@ class HEADLINE(object):
 		self.solved = False
 
 		# sDict contains some fully solved characters, and no empty sets
+		# TODO: Remove partial, it isn't actually used anywhere, hasChains is a better variable
 		self.partial = False
+
+		# Set to TRUE when the headline has usable chains
+		self.hasChains = False
+
+		# Have we abandoned solving this one by conventional means...
+		self.aborted = False
 
 		# sDict contains one or more empty sets (probably all empty sets)
 		# Usually means the encoded string contains an unknown word. omitWords
@@ -56,20 +63,85 @@ class HEADLINE(object):
 		# Evaluate sDict and set status accordingly
 		self.getStatus(None)
 
-		'''
-		# Moved this step to a new function
-		# TODO: Evaluate how often this is actually helpful, in most we can probably
-		# 		skip this step until everything has been initialized.
-		if self.failed ==False and self.solved == False:
-			# If failed, implies we have an unknown word
-			# If not solved, implies sigSolve may yet be effective
-			self.sDict = self.sigSolve(self.encWords, self.patDict)
-			self.getStatus(None)
-		'''
-
 		# Create a partial Dictionary:
 		self.generatepDict(None)
+		self.getChains()
 
+		if self.hasChains == True:
+			self.nextState = 'E' # Chainable, but could be improved with sigSolve
+		elif self.failed == True:
+			self.nextState = 'C' # Set Solver with omit words
+		elif self.incomplete == True:
+			self.nextState = 'B' # SigSolve
+		else:
+			# Got a partial solution, but no chains, treat as incomplete
+			self.nextState = 'B' # SigSolve
+
+	def nextSolve(self):
+		# Called by the SOLVER object whenever it runs solveSingles
+		if self.nextState == 'B':
+			#print("\tIn State B")
+			self.sDict = self.sigSolve(self.encWords)
+			self.getStatus(None)
+			self.generatepDict(None)
+			self.getChains()
+
+			if self.hasChains == True:
+				self.nextState = 'F' # Chainable, will not benefit from sigSolve
+			elif self.failed == True:
+				self.nextState = 'D' # Sig solve w/ omit words
+			else:
+				print("COULD BE SALVAGABLE")
+				print([len(self.sDict[key]) for key in self.sDict])
+				self.nextState = 'G' # Aborted state
+				self.aborted = True
+		
+		elif self.nextState == 'C':
+			#print("\tIn State C")
+			self.omitWords(None,True)
+			self.getStatus(None)
+			self.generatepDict(None)
+			self.getChains()	
+			
+			if self.hasChains == True:
+				self.nextState = 'F' # Chainable
+			elif self.incomplete == True:
+				self.nextState = 'D' # Sig solve w/ omit words
+			else:
+				#print("Hard Failure")
+				self.nextState = 'G' # aborted
+				self.aborted = True
+		
+		elif self.nextState == 'D':
+			#print("\tIn State D")
+			self.omitWords(None,False)
+			self.getStatus(None)
+			self.generatepDict(None)
+			self.getChains()
+
+			if self.hasChains == True:
+				self.nextState = 'F' # Chainable
+			else:
+				self.nextState = 'G' # aborted
+				self.aborted = True
+
+		elif self.nextState == 'E':
+			#print("\tIn State E")
+			# TODO: add a check here, make sure that sig solve actually improved the results
+			self.sDict = self.sigSolve(self.encWords)
+			self.getStatus(None)
+			self.generatepDict(None)
+			self.getChains()
+
+			if self.hasChains == True:
+				self.nextState = 'F' # Chainable, sigSolve already run
+			else:
+				print("Unexpected state! Sig solve made things worse?")
+				exit()
+
+		else:
+			# We're either in aborted or in chainable.  Either way nothing to do here!
+			pass						
 
 	def omitWords(self,clrStr,sFlag):
 		# Try using sigSolver but omit a single word at a time until success:
@@ -103,25 +175,29 @@ class HEADLINE(object):
 					self.sDict = setSolve_slim(wcopy,tmpMatches)
 				
 
-				self.failed = False
-				self.getStatus(None)
+				#self.failed = False
+				#self.getStatus(None)
 
 				# TODO: Identify incomplete solves
-				if self.failed == False:
-					# For now, just keep track of total solutions, and call
-					# it a failure if more than one appears
-					potentialSolves +=1
-					# TODO: Compare the generated pDict to the current one?
-					self.generatepDict(None)
-					#print("Omitted: ",words[i])
-					#printPartial(self.pDict,self.encStr,True)
-					#if clrStr != None:
-					#	print(clrStr)
-					#print()
+				#if self.failed == False:
+				# For now, just keep track of total solutions, and call
+				# it a failure if more than one appears
+				#potentialSolves +=1
+				tpDict = self.generatepDict(self.sDict)
 
-		if potentialSolves > 1:
-			self.failed = True
-			self.partial = False
+				if len(tpDict.keys()) > len(self.pDict.keys()):
+					self.pDict = tpDict
+					self.checkSol()
+					self.getStatus(None)
+
+
+					#self.generatepDict(None)
+
+
+		#if potentialSolves > 1:
+		#	#print("HERE!")
+		#	self.failed = True
+		#	self.partial = False
 
 	def generatepDict(self,dictIn):
 		# Converts the current sDict into a pDict
@@ -253,7 +329,7 @@ class HEADLINE(object):
 			ret = setTrim(words,tsDict,matches)
 			matches = ret[0]
 
-
+		
 		# TODO: Try a second pass- eventually want to replace this with a loop
 		for i in range(0,len(fstats)):
 			#print("trying:", words[stats[i][0]])
@@ -267,13 +343,47 @@ class HEADLINE(object):
 			tsDict  = setSolve_slim(words,matches)
 			ret = setTrim(words,tsDict,matches)
 			matches = ret[0]
+		
+		for i in range(0,len(matches)):
+			print(words[i],len(matches[i]))
+		print("#############")
+		'''
+		for i in range(0,len(fstats)):
+			#print("trying:", words[stats[i][0]])
+			if len(matches[fstats[i][0]]) > maxListLen:
+				# skip any that will take too long
+				continue
 
+			ss = SIGSOLVER(words,matches)
+			matchList = ss.sigTrim(fstats[i][0])
+			matches[fstats[i][0]] = matchList
+			tsDict  = setSolve_slim(words,matches)
+			ret = setTrim(words,tsDict,matches)
+			matches = ret[0]
+
+		for i in range(0,len(fstats)):
+			#print("trying:", words[stats[i][0]])
+			if len(matches[fstats[i][0]]) > maxListLen:
+				# skip any that will take too long
+				continue
+
+			ss = SIGSOLVER(words,matches)
+			matchList = ss.sigTrim(fstats[i][0])
+			matches[fstats[i][0]] = matchList
+			tsDict  = setSolve_slim(words,matches)
+			ret = setTrim(words,tsDict,matches)
+			matches = ret[0]
+		'''
 		val = getSets(words,matches)
 		return val[1]
 
 	def getChains(self):
 		# Calls the getChains function with the current pDict
 		self.chains = getChains(self.pDict)
+		if len(self.chains) > 0:
+			self.hasChains = True
+		else:
+			self.hasChains = False
 
 	def checkSol(self):
 		# calls printPartial:
