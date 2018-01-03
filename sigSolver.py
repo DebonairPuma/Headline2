@@ -306,4 +306,77 @@ def get_sig_tuples(encSig, clrSig, tChars):
 		if encSig[i] in tChars:
 			out.append((a[i],b[i]))
 
+<<<<<<< HEAD
 	return out	
+=======
+	return out
+
+def find_valid_signatures(eSchars, sigsIn, sigDicts):
+	# TODO: Once it's easier to understand, try optimizing it.
+	# eSchars is a list of encoded shared characters from the target word
+	# Checks to see which signatures (if any) are valid
+	
+	validSigs = []
+	setOftChars = set(eSchars)
+
+	sigsIn = list(sigsIn)
+	# For every signature, establish a set of subsignatures that we need to apply 
+	# to each word:
+	# LIST [ DICTS ], where keys are sigTuples, and values are indexes of sigsIn that use
+	# That signature
+
+
+	uSigs = []
+	for i in range(0,len(sigDicts)):
+		if sigDicts[i] == None:
+			uSigs.append(None)
+			continue
+
+		# Get the set of shared characters for this word:
+		sEncChars = set(sigDicts[i].keys())
+		sEncChars = sEncChars & setOftChars			
+
+		tDict = {}
+		for j in range(0,len(sigsIn)):
+			iTuple = tuple(get_sig_tuples(eSchars,sigsIn[j], sEncChars))
+			if iTuple in tDict:
+				# We've already seen this tuple set
+				tDict[iTuple].append(j)
+			else:
+				# We haven't seen this tuple yet, establish a new list:
+				tDict[iTuple] = [j]
+		uSigs.append(tDict)
+	
+	# Run check intersections on all:
+	validSets = []
+	for i in range(0,len(sigDicts)):
+		if uSigs[i] == None:
+			validSets.append(None)
+			continue
+
+		tSet = set()
+		for key in uSigs[i]:
+			pass
+			#ret = check_intersections(key,sigDicts[i]):
+			#if ret != False:
+				
+
+			#if check_intersections(key,sigDicts[i]):
+			#	for x in uSigs[i][key]:
+			#		tSet.add(x)
+
+		validSets.append(tSet)
+
+	# Merge all sets:
+	out = set(x for x in range(0,len(sigsIn)))
+	for i in range(0,len(validSets)):
+		if validSets[i] != None:
+			out &= validSets[i]
+	
+	return [sigsIn[x] for x in out]
+
+
+
+
+
+>>>>>>> constraints

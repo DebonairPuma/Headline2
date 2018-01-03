@@ -145,7 +145,10 @@ def updatePartial(key,val,Dict):
 	return pDict
 
 def printPartial(pDict,line,pFlag):
+<<<<<<< HEAD
 	#print(pDict)
+=======
+>>>>>>> constraints
 	newLine = ""
 	for i in range(0,len(line)):
 		if line[i] in pDict:
