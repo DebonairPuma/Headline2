@@ -145,17 +145,19 @@ from searchTree import *
 from TestingFuncs import *
 from copy import copy
 from solver_main import *
-from sigSolver_recursive import *
+from sigSolver import *
 
 ###########################################################
 # CONFIGURATION
 sourceDict = "websters_clean.txt"
 
+'''
 encStrs = ["DMXWPMKH NGQCB CPLK DYBF ULKHGRGLKMP LF RL ELXC TWACXPLLA RYKKCP",
 		   "AKFQO SGWDA CG GTAC FOB UDKNFHD HFCFNFO NDFBDUA",
 		   "ST OHSKWASIDK EIWDS NQH MEHHWBLIS HSJWSN",
 		   "ZUAAUF EPWFTE WMCUDX FPXU PF XRU UYPFPHZ",
 		   "PMF RKEEODDOKPTW TPRKXWBLTD YTBED YK WTDKFIT YUTOW SWKYTDY ODDXTD"]
+'''
 '''
 encStrs = [	"LMWQLX NRQSKV QY SKXMLINVML ZLNHHMH LMEQLVMX OK JNG",
 			"DXGUX NHQHAQ CHIHAYWP VYQX GXYW RCM",
@@ -165,11 +167,18 @@ encStrs = [	"LMWQLX NRQSKV QY SKXMLINVML ZLNHHMH LMEQLVMX OK JNG",
 '''
 
 # US DEC 17
-encStrs = [	"QBOKHP YCSWDWNRDEJ JDO SHTDWR SHJX FHCX EBN",
-			"FIBMX TUDWBJ WPBIE MUPPC POPU PBUIDPU",
-			"LWSICNIC VAMGIC WCMBLI YR WE ERMXZ QTQCFL",
-			"QHYIC KQCBQ M L LWSRRAL ZIY BXHAMO RH DMICYR CBWQX LYMFIXYL",
-			"WJCJQIE FQISC OGQAQY PS C U YJJN PSUQJIYJ PS CIPEV RIV"] 
+#encStrs = ["QBOKHP YCSWDWNRDEJ JDO SHTDWR SHJX FHCX EBN",
+#			"FIBMX TUDWBJ WPBIE MUPPC POPU PBUIDPU",
+#			"LWSICNIC VAMGIC WCMBLI YR WE ERMXZ QTQCFL",
+#			"QHYIC KQCBQ M L LWSRRAL ZIY BXHAMO RH DMICYR CBWQX LYMFIXYL",
+#			"WJCJQIE FQISC OGQAQY PS C U YJJN PSUQJIYJ PS CIPEV RIV"] 
+
+# US JAN 18
+encStrs = ["ROLXOND EKDAE NCJDY ZCYD EB OGEDZUOECJDY EB KBSD PDGCJDZI",
+		   "JQN VXAA YQHHMH HXCM WU FTJ XH TBFMIJQXB",
+		   "AOCGDP GCD PDEDLEBZ EDYEY KOJD OUNGDZY CU LBQZE TOEEGD",
+		   "WIANHT LNIG PCRGT GC NUZN PRCTNW GC QRIECYY LNWGJ",
+		   "D Q CUJDYECNOEDY CXDO Y PQELK EOF TZDOXY"]
 
 def main():
 	# Check for input arguments
@@ -211,12 +220,19 @@ def main():
 
 	#for sol in sols.solutions:
 	#	printPartial(sol,encStrs[1],True)
+	###################################################################################
+	# This is a full test of SOLVER & HEALINE
+	# Try solving the latest problem:
+	SOLVER(encStrs,patDict,tree)
 
-	
-	##################################################################################
-	# This runs a test only on individual headlines:
-	#NZWNTZ TZJQZ EWDR VWPZR JLG OJPATC SW EWAL JLSA NANZTALZ KJPN
-	#PEOPLE LEAVE JOBS HOMES AND FAMILY TO JOIN ANTI PIPELINE CAMP
+	exit()
+	for i in range(0,len(encStrs)):
+		words = encStrs[i].split(" ")
+		while " " in words:
+			words.remove(" ")
+		sols = SOLVER(words,patDict)
+
+
 	aborts = 0
 	chainable = 0
 	thisMonth = 0
@@ -320,7 +336,6 @@ def main():
 	# Try solving the latest problem:
 	SOLVER(encStrs,patDict,tree)
 
-	
 	# Full tests:
 	passed = 0
 	failed = 0
